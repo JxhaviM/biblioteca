@@ -25,7 +25,7 @@ const getBookById =async (req, res) =>{
 }
 
 const createBook = async (req, res) => {
-    const { title, author, isbn, publishedYear, stock } = req.body;
+    const { title, author, isbn, genre, publishedYear, stock, location } = req.body;
 
     // Validación básica
     if (!title || !author || !isbn || !stock) {
@@ -42,8 +42,10 @@ const createBook = async (req, res) => {
             title,
             author,
             isbn,
+            genre,
             publishedYear,
-            stock
+            stock,
+            location
         });
 
         const createdBook = await book.save();
@@ -56,7 +58,7 @@ const createBook = async (req, res) => {
 // @route   PUT /api/books/:id
 // @access  Private
 const updateBook = async (req, res) => {
-    const { title, author, isbn, publishedYear, stock } = req.body;
+    const { title, author, isbn,genre,  publishedYear, stock, location } = req.body;
 
     try {
         const book = await Book.findById(req.params.id);
@@ -66,6 +68,8 @@ const updateBook = async (req, res) => {
             book.author = author || book.author;
             book.isbn = isbn || book.isbn;
             book.publishedYear = publishedYear || book.publishedYear;
+            book.genre = genre || book.genre;
+            book.location =location || book.location;
             book.stock = stock !== undefined ? stock : book.stock; // Para permitir stock 0
 
             const updatedBook = await book.save();
