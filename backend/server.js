@@ -8,8 +8,6 @@ const authRoutes =require ('./routes/authRoutes');
 const bookRoutes =require ('./routes/bookRoutes')
 
 const app =express();
-console.log(process.env.JWT_SECRET);         // → 3000
-console.log(process.env.MONGO_URI);
 connectDB();
 
 //middlewares

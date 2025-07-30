@@ -18,9 +18,9 @@ const BookSchema = new mongoose.Schema({
         unique:true,
         trim:true
     },
-    gender:{
-        type:String,
-        required:true,        
+    genre:{
+        type:[String],
+        default:[]        
     },
     publishedYear:{
         type:Number
