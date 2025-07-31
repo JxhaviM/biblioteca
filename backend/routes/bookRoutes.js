@@ -20,6 +20,6 @@ router.get('/:id', getBookById);
 router.post('/', protect, createBook); // Solo usuarios autenticados pueden crear
 router.put('/:id', protect, updateBook); // Solo usuarios autenticados pueden actualizar
 router.delete('/:id', protect, deleteBook);
-router.post('/bulks', protect, createBulkBooks); // Solo usuarios autenticados pueden eliminar
+router.post('/import', protect, createBulkBooks); // Solo usuarios autenticados pueden eliminar
 
 module.exports = router;

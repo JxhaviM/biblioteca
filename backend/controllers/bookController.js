@@ -65,7 +65,7 @@ const createBulkBooks = async (req, res) => {
 
     try {
         const createBulkBooks = await Book.insertMany(booksData, { ordered: false }); // ordered:false para que intente insertar todos incluso si hay errores
-        res.status(201).json({ message: 'Libros creados exitosamente (algunos pueden haber fallado si hubo duplicados/errores).', books: createBulkBooks });
+        res.status(201).json({ message: `libros creados exitosamente: ${createBulkBooks.length}`, books: createBulkBooks });
     } catch (error) {
         // Esto capturará errores como duplicados de ISBN o validaciones de Mongoose
         // El error de insertMany puede ser complejo de parsear para mostrar al cliente
