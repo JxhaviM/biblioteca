@@ -5,7 +5,8 @@ const {
     getBookById,
     createBook,
     updateBook,
-    deleteBook
+    deleteBook,
+    createBulkBooks
 } = require('../controllers/bookController');
 const { protect } = require('../middlewares/authmiddleware'); // Importar el middleware de protección
 
@@ -18,6 +19,7 @@ router.get('/:id', getBookById);
 // Rutas protegidas (necesitan token)
 router.post('/', protect, createBook); // Solo usuarios autenticados pueden crear
 router.put('/:id', protect, updateBook); // Solo usuarios autenticados pueden actualizar
-router.delete('/:id', protect, deleteBook); // Solo usuarios autenticados pueden eliminar
+router.delete('/:id', protect, deleteBook);
+router.post('/bulks', protect, createBulkBooks); // Solo usuarios autenticados pueden eliminar
 
 module.exports = router;

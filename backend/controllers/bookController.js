@@ -11,7 +11,7 @@ const getBooks = async (req, res) =>{
 
 }; 
 
-const getBookById =async (req, res) =>{
+const getBookById =async (req, res) =>{ //Crear un solo libro
     try{
         const book= await Book.findById(req.params.id);
         if (book){
@@ -54,6 +54,27 @@ const createBook = async (req, res) => {
         res.status(500).json({ message: 'Error al crear libro', error: error.message });
     }
 };
+
+// Alternativa más simple para crear múltiples libros con insertMany
+const createBulkBooks = async (req, res) => {
+    const booksData = req.body;
+
+    if (!Array.isArray(booksData) || booksData.length === 0) {
+        return res.status(400).json({ message: 'Se espera un array de libros para la creación masiva.' });
+    }
+
+    try {
+        const createBulkBooks = await Book.insertMany(booksData, { ordered: false }); // ordered:false para que intente insertar todos incluso si hay errores
+        res.status(201).json({ message: 'Libros creados exitosamente (algunos pueden haber fallado si hubo duplicados/errores).', books: createBulkBooks });
+    } catch (error) {
+        // Esto capturará errores como duplicados de ISBN o validaciones de Mongoose
+        // El error de insertMany puede ser complejo de parsear para mostrar al cliente
+        console.error("Error en insertMany:", error);
+        res.status(400).json({ message: 'Hubo un error al crear uno o más libros.', error: error.message, details: error.writeErrors });
+    }
+};
+
+
 // @desc    Actualizar un libro
 // @route   PUT /api/books/:id
 // @access  Private
@@ -69,7 +90,7 @@ const updateBook = async (req, res) => {
             book.isbn = isbn || book.isbn;
             book.publishedYear = publishedYear || book.publishedYear;
             book.genre = genre || book.genre;
-            book.location =location || book.location;
+            book.location =location || book.location
             book.stock = stock !== undefined ? stock : book.stock; // Para permitir stock 0
 
             const updatedBook = await book.save();
@@ -106,6 +127,7 @@ module.exports = {
     createBook,
     updateBook,
     deleteBook,
+    createBulkBooks
 };
 
 
