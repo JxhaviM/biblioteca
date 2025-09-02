@@ -6,6 +6,7 @@ const connectDB = require('./config/db');
 
 const authRoutes =require ('./routes/authRoutes');
 const bookRoutes =require ('./routes/bookRoutes')
+const pqrRoutes = require('./routes/pqrRoutes');
 
 const app =express();
 connectDB();
@@ -18,6 +19,7 @@ app.use(morgan('dev')); //habilita el logging de solicitudes HTTP en la consola
 //rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
+app.use('/api/pqrs', pqrRoutes);
 
 //ruta de prueba
 app.get('/',(req, res)=>{
