@@ -66,11 +66,12 @@ try {
     console.log('✅ reportsRoutes - OK');
     app.use('/api/reports', updateLoanStatuses, reportsRoutes);
     
-    const pqrRoutes = require('./routes/pqrRoutes');
-    console.log('✅ pqrRoutes - OK');
-    app.use('/api/pqrs', pqrRoutes);
+    // 🔄 Rutas futuras - PQR System (Coming Soon v1.1)
+    // const pqrRoutes = require('./routes/pqrRoutes');
+    // console.log('✅ pqrRoutes - OK');
+    // app.use('/api/pqrs', pqrRoutes);
     
-    console.log('✅ Todas las rutas cargadas correctamente');
+    console.log('✅ Todas las rutas core cargadas correctamente (PQR pendiente v1.1)');
     
 } catch (error) {
     console.error('❌ Error al cargar rutas:', error.message);
@@ -99,8 +100,8 @@ app.use((req, res) => {
             '/api/students',
             '/api/loans',
             '/api/reports',
-            '/api/pqrs',
             '/api/health'
+            // '/api/pqrs' - Coming Soon v1.1
         ]
     });
 });

@@ -4,8 +4,8 @@ Sistema integral de gestión de biblioteca desarrollado como monorepo con **Node
 
 ## 🌟 Características Principales
 
-### 🎯 Backend Completamente Funcional
-- ✅ **API REST completa** con 6 módulos principales
+### 🎯 Backend Completamente Funcional - MVP v1.0
+- ✅ **API REST completa** con 5 módulos principales
 - ✅ **Sistema de préstamos inteligente** con 6 estados automatizados
 - ✅ **Gestión de múltiples copias** por libro
 - ✅ **Autenticación JWT** y middleware de seguridad
@@ -28,14 +28,19 @@ Sistema integral de gestión de biblioteca desarrollado como monorepo con **Node
 
 ## 🚀 Estado Actual del Proyecto
 
-### ✅ Completado (Backend)
-- [x] **Modelos de datos** avanzados (Book, Student, Loan, User, PQR)
+### ✅ Completado (Backend MVP v1.0)
+- [x] **Modelos de datos** avanzados (Book, Student, Loan, User)
 - [x] **Controladores** con lógica de negocio completa
-- [x] **Rutas API** documentadas y funcionales
+- [x] **Rutas API** documentadas y funcionales (5 módulos core)
 - [x] **Middleware** de autenticación y actualización automática
 - [x] **Servicios** de programación y mantenimiento
 - [x] **Servidor** optimizado y sin errores
 - [x] **Documentación** completa (API, Arquitectura, Instalación)
+
+### 🔄 En Desarrollo (v1.1)
+- [ ] **Sistema PQR** completo (documentado, listo para implementar)
+- [ ] **Notificaciones** automáticas por email
+- [ ] **Frontend React** integración completa
 
 ### 🔄 En Progreso (Frontend)
 - [ ] **Integración** con API backend
@@ -44,7 +49,7 @@ Sistema integral de gestión de biblioteca desarrollado como monorepo con **Node
 - [ ] **Autenticación** de usuarios
 - [ ] **Componentes** de formularios
 
-### 🎯 Pendiente (Futuras Features)
+### 🎯 Pendiente (Futuras Features v1.2+)
 - [ ] **Notificaciones** automáticas
 - [ ] **Sistema de multas** y penalizaciones
 - [ ] **Códigos QR/Barcode** para libros

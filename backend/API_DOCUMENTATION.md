@@ -427,16 +427,22 @@ GET /api/reports/automatic
 
 ---
 
-## 🎫 PQRs (Peticiones, Quejas y Reclamos)
+## 🎫 PQRs (Peticiones, Quejas y Reclamos) 🔄 **[COMING SOON v1.1]**
 
-### Base URL: `/api/pqrs`
+> **Estado**: 📋 Documentado | 🔄 No implementado  
+> **Disponibilidad**: Próxima versión v1.1  
+> **Prioridad**: Media (Post-MVP feedback)
 
-#### Obtener Todas las PQRs
+*El sistema PQR permitirá a estudiantes y administradores gestionar peticiones, quejas y reclamos de manera organizada. Esta funcionalidad está completamente diseñada y lista para implementar en la siguiente iteración.*
+
+### Base URL: `/api/pqrs` *(Próximamente)*
+
+#### Obtener Todas las PQRs *(Futuro)*
 ```http
 GET /api/pqrs
 ```
 
-#### Crear PQR
+#### Crear PQR *(Futuro)*
 ```http
 POST /api/pqrs
 Content-Type: application/json
@@ -449,6 +455,15 @@ Content-Type: application/json
     "priority": "medium" // low, medium, high
 }
 ```
+
+**📋 Funcionalidades Planificadas:**
+- ✅ CRUD completo de PQRs
+- ✅ Categorización por tipos (petición, queja, reclamo)
+- ✅ Sistema de prioridades
+- ✅ Seguimiento de estado
+- ✅ Respuestas y resoluciones
+- ✅ Reportes de PQRs por período
+- ✅ Notificaciones automáticas
 
 ---
 

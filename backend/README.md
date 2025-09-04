@@ -2,7 +2,7 @@
 
 Sistema completo de gestión de biblioteca desarrollado con **Node.js**, **Express** y **MongoDB**. Permite gestionar libros, estudiantes, préstamos y generar reportes avanzados con funcionalidades inteligentes.
 
-## 🌟 Características Principales
+## 🌟 Características Principales - MVP v1.0
 
 ### 📖 Gestión de Libros
 - ✅ CRUD completo de libros
@@ -90,7 +90,7 @@ backend/
 │   ├── studentController.js  # Gestión de estudiantes
 │   ├── loanController.js     # Sistema de préstamos
 │   ├── reportsController.js  # Reportes y estadísticas
-│   └── pqrController.js      # PQRs
+│   └── pqrController.js      # 🔄 PQR (v1.1 - Futuro)
 ├── middlewares/
 │   ├── authMiddleware.js     # Autenticación JWT
 │   └── loanMiddleware.js     # Actualización automática
@@ -99,14 +99,14 @@ backend/
 │   ├── student.js           # Modelo de estudiantes
 │   ├── loan.js              # Modelo de préstamos
 │   ├── user.js              # Modelo de usuarios
-│   └── pqr.js               # Modelo PQRs
+│   └── pqr.js               # 🔄 Modelo PQR (v1.1 - Futuro)s
 ├── routes/
 │   ├── authRoutes.js        # Rutas de autenticación
 │   ├── bookRoutes.js        # Rutas de libros
 │   ├── studentRoutes.js     # Rutas de estudiantes
 │   ├── loanRoutes.js        # Rutas de préstamos
 │   ├── reportsRoutes.js     # Rutas de reportes
-│   └── pqrRoutes.js         # Rutas PQRs
+│   └── pqrRoutes.js         # 🔄 Rutas PQR (v1.1 - Futuro)s
 ├── services/
 │   └── schedulerService.js  # Tareas programadas
 ├── .env                     # Variables de entorno
@@ -284,7 +284,21 @@ curl -X POST http://localhost:5000/api/books \
 
 ## 🚀 Próximas Funcionalidades
 
-### En Desarrollo
+### 🔄 En Desarrollo (v1.1)
+- [ ] **Sistema PQR completo** - Peticiones, quejas y reclamos
+- [ ] **Notificaciones automáticas** por email/SMS
+- [ ] **Dashboard administrativo** avanzado
+- [ ] **API de multas** y penalizaciones
+
+### 📋 Planificadas (v1.2+)
+- [ ] Sistema de notificaciones automáticas
+- [ ] API de multas y penalizaciones  
+- [ ] Integración con códigos QR/Barcode
+- [ ] Sistema de reservas de libros
+- [ ] Dashboard web administrativo
+- [ ] Exportación de reportes a PDF/Excel
+
+### Mejoras Planeadas
 - [ ] Sistema de notificaciones automáticas
 - [ ] API de multas y penalizaciones  
 - [ ] Integración con códigos QR/Barcode
