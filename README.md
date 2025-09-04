@@ -1,6 +1,79 @@
-# Sistema de Gestión de Biblioteca
+# 📚 Sistema de Biblioteca - Proyecto Completo
 
-Este es un sistema completo para gestionar el uso de la biblioteca de una institución educativa.
+Sistema integral de gestión de biblioteca desarrollado como monorepo con **Node.js/Express** (backend) y **React/Vite** (frontend). Diseñado para gestionar libros, estudiantes, préstamos y generar reportes avanzados con funcionalidades inteligentes.
+
+## 🌟 Características Principales
+
+### 🎯 Backend Completamente Funcional
+- ✅ **API REST completa** con 6 módulos principales
+- ✅ **Sistema de préstamos inteligente** con 6 estados automatizados
+- ✅ **Gestión de múltiples copias** por libro
+- ✅ **Autenticación JWT** y middleware de seguridad
+- ✅ **Reportes y analytics** en tiempo real
+- ✅ **Base de datos MongoDB** con Mongoose ODM
+
+### 🔧 Arquitectura Robusta
+- 📁 **Patrón MVC** bien estructurado
+- 🔄 **Middleware automático** para actualización de estados
+- 🔍 **Búsqueda avanzada** con filtros múltiples
+- 📊 **Agregaciones complejas** para reportes
+- 🛡️ **Manejo de errores** robusto
+- 🔧 **Validaciones** a nivel de esquema
+
+### 📱 Frontend Preparado
+- ⚛️ **React 18** con TypeScript
+- ⚡ **Vite** para desarrollo rápido
+- 🎨 **Tailwind CSS** para styling
+- 📦 **Componentes modulares** listos
+
+## 🚀 Estado Actual del Proyecto
+
+### ✅ Completado (Backend)
+- [x] **Modelos de datos** avanzados (Book, Student, Loan, User, PQR)
+- [x] **Controladores** con lógica de negocio completa
+- [x] **Rutas API** documentadas y funcionales
+- [x] **Middleware** de autenticación y actualización automática
+- [x] **Servicios** de programación y mantenimiento
+- [x] **Servidor** optimizado y sin errores
+- [x] **Documentación** completa (API, Arquitectura, Instalación)
+
+### 🔄 En Progreso (Frontend)
+- [ ] **Integración** con API backend
+- [ ] **Páginas** de gestión (Books, Students, Loans)
+- [ ] **Dashboard** de reportes
+- [ ] **Autenticación** de usuarios
+- [ ] **Componentes** de formularios
+
+### 🎯 Pendiente (Futuras Features)
+- [ ] **Notificaciones** automáticas
+- [ ] **Sistema de multas** y penalizaciones
+- [ ] **Códigos QR/Barcode** para libros
+- [ ] **Reservas** de libros
+- [ ] **Exportación** de reportes (PDF/Excel)
+
+## 📊 Tecnologías Utilizadas
+
+### Backend
+- **Runtime**: Node.js v18+
+- **Framework**: Express.js
+- **Base de Datos**: MongoDB + Mongoose ODM
+- **Autenticación**: JWT (JSON Web Tokens)
+- **Validación**: Mongoose schemas + custom validators
+- **Seguridad**: bcryptjs, CORS, middleware personalizado
+- **Desarrollo**: nodemon, dotenv, Morgan logging
+
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS + PostCSS
+- **Linting**: ESLint
+- **Desarrollo**: Hot Module Replacement (HMR)
+
+### DevOps & Tools
+- **Package Manager**: npm workspaces (monorepo)
+- **Version Control**: Git
+- **Environment**: .env files
+- **Documentation**: Markdown docs
 
 ## Estructura del Proyecto
 
