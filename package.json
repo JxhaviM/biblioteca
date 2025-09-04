@@ -1,29 +1,28 @@
 {
   "name": "biblioteca",
   "version": "1.0.0",
-  "main": "backend/server.js",
+  "description": "Sistema de gestión de biblioteca - Monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "start": "node backend/server.js",
-    "server": "nodemon backend/server.js",
-    "client": "npm run dev --prefix frontend",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "start": "npm run start --prefix backend",
+    "start:backend": "npm run start --prefix backend",
+    "start:frontend": "npm run dev --prefix frontend",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "clean": "rm -rf node_modules && rm -rf backend/node_modules && rm -rf frontend/node_modules",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["biblioteca", "management", "system", "fullstack"],
   "author": "",
   "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.0",
-    "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.16.5",
-    "morgan": "^1.10.0"
-  },
   "devDependencies": {
-    "concurrently": "^9.2.0",
-    "nodemon": "^3.1.10"
+    "concurrently": "^9.2.0"
   }
 }
