@@ -80,45 +80,45 @@ const performDatabaseMaintenance = async () => {
 };
 
 // Función para validar reglas de negocio antes de crear préstamos
-const validateLoanRules = async (studentId, bookId) => {
+const validateLoanRules = async (userId, bookId) => {
     const rules = {
-        maxLoansPerStudent: 5,
+        maxLoansPerUser: 5,
         maxOverdueLoansAllowed: 2,
         maxRenewalDays: 30
     };
 
     try {
-        // 1. Verificar número máximo de préstamos activos por estudiante
+        // 1. Verificar número máximo de préstamos activos por usuario
         const activeLoans = await Loan.countDocuments({
-            studentId: studentId,
+            userId: userId,
             isBorrowed: true,
             status: { $in: ['prestado', 'atrasado'] }
         });
 
-        if (activeLoans >= rules.maxLoansPerStudent) {
-            throw new Error(`El estudiante ya tiene ${activeLoans} préstamos activos. Máximo permitido: ${rules.maxLoansPerStudent}`);
+        if (activeLoans >= rules.maxLoansPerUser) {
+            throw new Error(`El usuario ya tiene ${activeLoans} préstamos activos. Máximo permitido: ${rules.maxLoansPerUser}`);
         }
 
         // 2. Verificar préstamos atrasados
         const overdueLoans = await Loan.countDocuments({
-            studentId: studentId,
+            userId: userId,
             status: 'atrasado'
         });
 
         if (overdueLoans >= rules.maxOverdueLoansAllowed) {
-            throw new Error(`El estudiante tiene ${overdueLoans} préstamos atrasados. Debe devolver libros atrasados antes de solicitar nuevos préstamos.`);
+            throw new Error(`El usuario tiene ${overdueLoans} préstamos atrasados. Debe devolver libros atrasados antes de solicitar nuevos préstamos.`);
         }
 
-        // 3. Verificar si el estudiante ya tiene este libro prestado
+        // 3. Verificar si el usuario ya tiene este libro prestado
         const existingLoan = await Loan.findOne({
-            studentId: studentId,
+            userId: userId,
             bookId: bookId,
             isBorrowed: true,
             status: { $in: ['prestado', 'atrasado'] }
         });
 
         if (existingLoan) {
-            throw new Error('El estudiante ya tiene una copia de este libro prestada');
+            throw new Error('El usuario ya tiene una copia de este libro prestada');
         }
 
         return {
@@ -138,7 +138,7 @@ const validateLoanRules = async (studentId, bookId) => {
 };
 
 // Función para calcular fecha de vencimiento inteligente
-const calculateDueDate = (loanType = 'standard', studentGrade = null) => {
+const calculateDueDate = (loanType = 'standard', userGrade = null) => {
     const now = new Date();
     let daysToAdd = 14; // Por defecto 14 días
 
@@ -159,10 +159,10 @@ const calculateDueDate = (loanType = 'standard', studentGrade = null) => {
             break;
     }
 
-    // Ajustar según el grado del estudiante (opcional)
-    if (studentGrade) {
-        // Estudiantes de grados superiores pueden tener más tiempo
-        if (studentGrade.includes('11') || studentGrade.includes('12') || studentGrade.toLowerCase().includes('universitario')) {
+    // Ajustar según el grado del usuario (opcional)
+    if (userGrade) {
+        // Usuarios de grados superiores pueden tener más tiempo
+        if (userGrade.includes('11') || userGrade.includes('12') || userGrade.toLowerCase().includes('universitario')) {
             daysToAdd += 7; // 7 días adicionales para grados superiores
         }
     }
@@ -228,8 +228,8 @@ const generateAutomaticReports = async () => {
             { $limit: 10 }
         ]);
 
-        // Reporte de estudiantes más activos
-        const activeStudents = await Loan.aggregate([
+        // Reporte de usuarios más activos
+        const activeUsers = await Loan.aggregate([
             {
                 $match: {
                     loanStartDate: { $gte: oneWeekAgo }
@@ -237,19 +237,19 @@ const generateAutomaticReports = async () => {
             },
             {
                 $group: {
-                    _id: '$studentId',
+                    _id: '$userId',
                     loanCount: { $sum: 1 }
                 }
             },
             {
                 $lookup: {
-                    from: 'students',
+                    from: 'users',
                     localField: '_id',
                     foreignField: '_id',
-                    as: 'student'
+                    as: 'user'
                 }
             },
-            { $unwind: '$student' },
+            { $unwind: '$user' },
             { $sort: { loanCount: -1 } },
             { $limit: 10 }
         ]);
@@ -261,7 +261,7 @@ const generateAutomaticReports = async () => {
             },
             weeklyLoans,
             popularBooks,
-            activeStudents,
+            activeUsers,
             generatedAt: now
         };
 

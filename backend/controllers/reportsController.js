@@ -1,5 +1,5 @@
 const Book = require('../models/book');
-const Student = require('../models/student');
+const User = require('../models/user');
 const Loan = require('../models/loan');
 const { generateAutomaticReports, performDatabaseMaintenance } = require('../middlewares/loanMiddleware');
 
@@ -11,7 +11,7 @@ const getDashboard = async (req, res) => {
 
         // Estadísticas generales
         const totalBooks = await Book.countDocuments({ isActive: true });
-        const totalStudents = await Student.countDocuments({ isActive: true });
+        const totalUsers = await User.countDocuments({ isActive: true });
         const totalLoans = await Loan.countDocuments({});
 
         // Préstamos activos
@@ -94,7 +94,7 @@ const getDashboard = async (req, res) => {
             data: {
                 summary: {
                     totalBooks,
-                    totalStudents,
+                    totalUsers,
                     totalLoans,
                     activeLoans,
                     overdueLoans,
@@ -141,7 +141,7 @@ const getLoanReport = async (req, res) => {
             }
         })
         .populate('bookId', 'title author isbn genre')
-        .populate('studentId', 'name idNumber grade')
+        .populate('userId', 'username tipoPersona personRef')
         .sort({ loanStartDate: -1 });
 
         // Estadísticas del período
@@ -258,80 +258,21 @@ const getPopularBooksReport = async (req, res) => {
     }
 };
 
-// Obtener reporte de estudiantes activos
+// TEMPORAL: Función comentada mientras se migra de Student a User
 const getActiveStudentsReport = async (req, res) => {
     try {
-        const { period = 30, limit = 20 } = req.query;
-        const now = new Date();
-        const startDate = new Date(now.getTime() - period * 24 * 60 * 60 * 1000);
-
-        const activeStudents = await Loan.aggregate([
-            {
-                $match: {
-                    loanStartDate: { $gte: startDate }
-                }
-            },
-            {
-                $group: {
-                    _id: '$studentId',
-                    totalLoans: { $sum: 1 },
-                    currentLoans: {
-                        $sum: {
-                            $cond: [
-                                { $in: ['$status', ['prestado', 'atrasado']] },
-                                1,
-                                0
-                            ]
-                        }
-                    },
-                    overdueLoans: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', 'atrasado'] }, 1, 0]
-                        }
-                    },
-                    totalRenewals: { $sum: '$renewalCount' }
-                }
-            },
-            {
-                $lookup: {
-                    from: 'students',
-                    localField: '_id',
-                    foreignField: '_id',
-                    as: 'student'
-                }
-            },
-            { $unwind: '$student' },
-            {
-                $project: {
-                    student: {
-                        name: '$student.name',
-                        idNumber: '$student.idNumber',
-                        grade: '$student.grade'
-                    },
-                    totalLoans: 1,
-                    currentLoans: 1,
-                    overdueLoans: 1,
-                    totalRenewals: 1,
-                    activityScore: '$totalLoans' // Puede ser más complejo
-                }
-            },
-            { $sort: { totalLoans: -1 } },
-            { $limit: parseInt(limit) }
-        ]);
-
         res.status(200).json({
             success: true,
+            message: 'Función en migración - usar /api/users para obtener usuarios activos',
             data: {
-                period: `${period} días`,
-                totalStudents: activeStudents.length,
-                students: activeStudents
+                totalUsers: 0,
+                users: []
             }
         });
-
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error al generar reporte de estudiantes activos',
+            message: 'Error en reporte de usuarios',
             error: error.message
         });
     }
@@ -377,11 +318,106 @@ const getAutomaticReport = async (req, res) => {
     }
 };
 
+// Reporte de usuarios activos (reemplaza el de estudiantes)
+const getActiveUsersReport = async (req, res) => {
+    try {
+        const { startDate, endDate, tipoPersona, page = 1, limit = 50 } = req.query;
+        
+        // Construir filtros de fecha
+        let dateFilter = {};
+        if (startDate || endDate) {
+            dateFilter.loanStartDate = {};
+            if (startDate) dateFilter.loanStartDate.$gte = new Date(startDate);
+            if (endDate) dateFilter.loanStartDate.$lte = new Date(endDate);
+        }
+
+        // Agregar filtro por tipo de persona si se especifica
+        if (tipoPersona) {
+            dateFilter.tipoPersona = tipoPersona;
+        }
+
+        const activeUsers = await Loan.aggregate([
+            { $match: dateFilter },
+            {
+                $group: {
+                    _id: '$userId',
+                    tipoPersona: { $first: '$tipoPersona' },
+                    totalLoans: { $sum: 1 },
+                    currentLoans: {
+                        $sum: {
+                            $cond: [
+                                { $in: ['$status', ['prestado', 'atrasado']] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    overdueLoans: {
+                        $sum: {
+                            $cond: [{ $eq: ['$status', 'atrasado'] }, 1, 0]
+                        }
+                    },
+                    totalRenewals: { $sum: '$renewalCount' }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            { $unwind: '$user' },
+            {
+                $project: {
+                    user: {
+                        username: '$user.username',
+                        tipoPersona: '$user.tipoPersona',
+                        role: '$user.role'
+                    },
+                    totalLoans: 1,
+                    currentLoans: 1,
+                    overdueLoans: 1,
+                    totalRenewals: 1,
+                    averageLoansPerMonth: {
+                        $round: [{ $divide: ['$totalLoans', 12] }, 2]
+                    }
+                }
+            },
+            { $sort: { totalLoans: -1 } },
+            { $skip: (page - 1) * limit },
+            { $limit: parseInt(limit) }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                totalUsers: activeUsers.length,
+                users: activeUsers,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    hasMore: activeUsers.length === parseInt(limit)
+                }
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener reporte de usuarios activos',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getDashboard,
     getLoanReport,
     getPopularBooksReport,
-    getActiveStudentsReport,
+    getActiveStudentsReport: getActiveUsersReport, // Alias para compatibilidad con rutas
+    getActiveUsersReport,
     runMaintenance,
     getAutomaticReport
 };

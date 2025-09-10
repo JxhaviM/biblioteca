@@ -64,6 +64,10 @@ const BookSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+    deletedAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true
@@ -143,6 +147,23 @@ BookSchema.statics.searchBooks = function(searchTerm, options = {}) {
 // Método estático para encontrar libros activos
 BookSchema.statics.findActiveBooks = function() {
     return this.find({ isActive: true }).sort({ title: 1 });
+};
+
+// Métodos para soft delete
+BookSchema.statics.findActive = function() {
+    return this.find({ isActive: true });
+};
+
+BookSchema.methods.softDelete = function() {
+    this.isActive = false;
+    this.deletedAt = new Date();
+    return this.save();
+};
+
+BookSchema.methods.restore = function() {
+    this.isActive = true;
+    this.deletedAt = null;
+    return this.save();
 };
 
 module.exports = mongoose.model('Book', BookSchema);

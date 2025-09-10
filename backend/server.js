@@ -21,8 +21,11 @@ app.get('/', (req, res) => {
         version: '2.0.0',
         endpoints: {
             auth: '/api/auth',
+            persons: '/api/persons',
+            attendance: '/api/attendance',
+            spaces: '/api/spaces',
             books: '/api/books',
-            students: '/api/students', 
+            users: '/api/users',
             loans: '/api/loans',
             reports: '/api/reports',
             pqrs: '/api/pqrs'
@@ -50,13 +53,30 @@ try {
     console.log('✅ authRoutes - OK');
     app.use('/api/auth', authRoutes);
     
+    const personRoutes = require('./routes/personRoutes');
+    console.log('✅ personRoutes - OK');
+    app.use('/api/persons', personRoutes);
+    
+    const attendanceRoutes = require('./routes/attendanceRoutes');
+    console.log('✅ attendanceRoutes - OK');
+    app.use('/api/attendance', attendanceRoutes);
+    
+    const spaceUsageRoutes = require('./routes/spaceUsageRoutes');
+    console.log('✅ spaceUsageRoutes - OK');
+    app.use('/api/spaces', spaceUsageRoutes);
+    
     const bookRoutes = require('./routes/bookRoutes');
     console.log('✅ bookRoutes - OK');
     app.use('/api/books', bookRoutes);
     
-    const studentRoutes = require('./routes/studentRoutes');
-    console.log('✅ studentRoutes - OK');
-    app.use('/api/students', updateLoanStatuses, studentRoutes);
+    const userRoutes = require('./routes/userRoutes');
+    console.log('✅ userRoutes - OK');
+    app.use('/api/users', userRoutes);
+    
+    // DEPRECATED: Student routes - Ahora usar /api/users
+    // const studentRoutes = require('./routes/studentRoutes');
+    // console.log('✅ studentRoutes - OK');
+    // app.use('/api/students', updateLoanStatuses, studentRoutes);
     
     const loanRoutes = require('./routes/loanRoutes');
     console.log('✅ loanRoutes - OK');
@@ -96,8 +116,11 @@ app.use((req, res) => {
         message: `Ruta ${req.originalUrl} no encontrada`,
         availableRoutes: [
             '/api/auth',
-            '/api/books', 
-            '/api/students',
+            '/api/persons',
+            '/api/attendance',
+            '/api/spaces',
+            '/api/books',
+            '/api/users',
             '/api/loans',
             '/api/reports',
             '/api/health'
@@ -152,7 +175,8 @@ const server = app.listen(PORT, () => {
     console.log(`🌐 API disponible en: http://localhost:${PORT}`);
     console.log(`📚 Endpoints principales:`);
     console.log(`   - Books: http://localhost:${PORT}/api/books`);
-    console.log(`   - Students: http://localhost:${PORT}/api/students`);
+    // console.log(`   - Students: http://localhost:${PORT}/api/students`); // DEPRECATED
+    console.log(`   - Users: http://localhost:${PORT}/api/users`);
     console.log(`   - Loans: http://localhost:${PORT}/api/loans`);
     console.log(`   - Reports: http://localhost:${PORT}/api/reports`);
     console.log(`   - Auth: http://localhost:${PORT}/api/auth`);

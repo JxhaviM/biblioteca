@@ -1,19 +1,19 @@
 const Loan = require('../models/loan');
 const Book = require('../models/book');
-const Student = require('../models/student');
+const User = require('../models/user');
 const mongoose = require('mongoose');
 const { validateLoanRules, calculateDueDate } = require('../middlewares/loanMiddleware');
 
 // Crear un nuevo préstamo
 const createLoan = async (req, res) => {
     try {
-        const { bookId, studentId, copyNumber, dueDate, loanedBy = 'Sistema', loanType = 'standard' } = req.body;
+        const { bookId, userId, copyNumber, dueDate, loanedBy = 'Sistema', loanType = 'standard' } = req.body;
         
         // Validaciones básicas
-        if (!bookId || !studentId || !copyNumber) {
+        if (!bookId || !userId || !copyNumber) {
             return res.status(400).json({
                 success: false,
-                message: 'bookId, studentId y copyNumber son requeridos'
+                message: 'bookId, userId y copyNumber son requeridos'
             });
         }
         
@@ -26,17 +26,17 @@ const createLoan = async (req, res) => {
             });
         }
         
-        // Verificar que el estudiante existe y está activo
-        const student = await Student.findById(studentId);
-        if (!student || !student.isActive) {
+        // Verificar que el usuario existe y está activo
+        const user = await User.findById(userId).populate('personRef');
+        if (!user || !user.isActive) {
             return res.status(404).json({
                 success: false,
-                message: 'Estudiante no encontrado o inactivo'
+                message: 'Usuario no encontrado o inactivo'
             });
         }
 
         // Validar reglas de negocio
-        const validationResult = await validateLoanRules(studentId, bookId);
+        const validationResult = await validateLoanRules(userId, bookId);
         if (!validationResult.valid) {
             return res.status(400).json({
                 success: false,
@@ -58,11 +58,12 @@ const createLoan = async (req, res) => {
             }
             
             // Actualizar la copia existente para prestarla
-            existingCopy.studentId = studentId;
+            existingCopy.userId = userId;
+            existingCopy.tipoPersona = user.tipoPersona;
             existingCopy.isBorrowed = true;
             existingCopy.status = 'prestado';
             existingCopy.loanStartDate = new Date();
-            existingCopy.dueDate = dueDate ? new Date(dueDate) : calculateDueDate(loanType, student.grade);
+            existingCopy.dueDate = dueDate ? new Date(dueDate) : calculateDueDate(loanType, user.personRef?.grado);
             existingCopy.loanedBy = loanedBy;
             existingCopy.returnDate = null;
             existingCopy.returnedBy = null;
@@ -71,7 +72,7 @@ const createLoan = async (req, res) => {
             
             const populatedLoan = await Loan.findById(existingCopy._id)
                 .populate('bookId', 'title author isbn')
-                .populate('studentId', 'name idNumber grade');
+                .populate('userId', 'username tipoPersona personRef');
             
             return res.status(200).json({
                 success: true,
@@ -86,12 +87,13 @@ const createLoan = async (req, res) => {
         // Si no existe la copia, crear una nueva
         const loan = new Loan({
             bookId,
-            studentId,
+            userId,
+            tipoPersona: user.tipoPersona,
             copyNumber,
             isBorrowed: true,
             status: 'prestado',
             loanStartDate: new Date(),
-            dueDate: dueDate ? new Date(dueDate) : calculateDueDate(loanType, student.grade),
+            dueDate: dueDate ? new Date(dueDate) : calculateDueDate(loanType, user.personRef?.grado),
             loanedBy
         });
         
@@ -99,7 +101,7 @@ const createLoan = async (req, res) => {
         
         const populatedLoan = await Loan.findById(loan._id)
             .populate('bookId', 'title author isbn')
-            .populate('studentId', 'name idNumber grade');
+            .populate('userId', 'username tipoPersona personRef');
         
         res.status(201).json({
             success: true,
@@ -127,7 +129,7 @@ const returnBook = async (req, res) => {
         
         const loan = await Loan.findById(id)
             .populate('bookId', 'title author isbn')
-            .populate('studentId', 'name idNumber grade');
+            .populate('userId', 'username tipoPersona personRef');
         
         if (!loan) {
             return res.status(404).json({
@@ -180,7 +182,7 @@ const postponeLoan = async (req, res) => {
         
         const loan = await Loan.findById(id)
             .populate('bookId', 'title author isbn')
-            .populate('studentId', 'name idNumber grade');
+            .populate('userId', 'username tipoPersona personRef');
         
         if (!loan) {
             return res.status(404).json({
@@ -227,22 +229,22 @@ const postponeLoan = async (req, res) => {
     }
 };
 
-// Obtener préstamos por estudiante
-const getLoansByStudent = async (req, res) => {
+// Obtener préstamos por usuario
+const getLoansByUser = async (req, res) => {
     try {
-        const { studentId } = req.params;
+        const { userId } = req.params;
         const { status, page = 1, limit = 20 } = req.query;
         
-        // Verificar que el estudiante existe
-        const student = await Student.findById(studentId);
-        if (!student) {
+        // Verificar que el usuario existe
+        const user = await User.findById(userId).populate('personRef');
+        if (!user) {
             return res.status(404).json({
                 success: false,
-                message: 'Estudiante no encontrado'
+                message: 'Usuario no encontrado'
             });
         }
         
-        let filters = { studentId };
+        let filters = { userId };
         if (status) {
             filters.status = status;
         }
@@ -263,7 +265,8 @@ const getLoansByStudent = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                student: student.getFormattedInfo(),
+                user: user.getUserInfo(),
+                person: user.personRef ? user.personRef.getBasicInfo() : null,
                 loans
             },
             pagination: {
@@ -305,7 +308,7 @@ const getOverdueLoans = async (req, res) => {
         
         const overdueLoans = await Loan.find({ status: 'atrasado' })
             .populate('bookId', 'title author isbn location')
-            .populate('studentId', 'name idNumber grade contactInfo')
+            .populate('userId', 'username tipoPersona personRef')
             .sort({ dueDate: 1 })
             .limit(options.limit * 1)
             .skip((options.page - 1) * options.limit);
@@ -341,7 +344,7 @@ const getOverdueLoans = async (req, res) => {
 // Obtener historial completo de préstamos
 const getLoanHistory = async (req, res) => {
     try {
-        const { page = 1, limit = 50, status, startDate, endDate, bookId, studentId } = req.query;
+        const { page = 1, limit = 50, status, startDate, endDate, bookId, userId, tipoPersona } = req.query;
         
         // Construir filtros
         let filters = {};
@@ -354,8 +357,12 @@ const getLoanHistory = async (req, res) => {
             filters.bookId = bookId;
         }
         
-        if (studentId) {
-            filters.studentId = studentId;
+        if (userId) {
+            filters.userId = userId;
+        }
+        
+        if (tipoPersona) {
+            filters.tipoPersona = tipoPersona;
         }
         
         if (startDate || endDate) {
@@ -375,7 +382,7 @@ const getLoanHistory = async (req, res) => {
         
         const loans = await Loan.find(filters)
             .populate('bookId', 'title author isbn location')
-            .populate('studentId', 'name idNumber grade')
+            .populate('userId', 'username tipoPersona personRef')
             .sort({ createdAt: -1 })
             .limit(options.limit * 1)
             .skip((options.page - 1) * options.limit);
@@ -434,7 +441,7 @@ const createBookCopies = async (req, res) => {
         for (let i = 0; i < numberOfCopies; i++) {
             copies.push({
                 bookId,
-                studentId: null,
+                userId: null, // Sin usuario asignado inicialmente
                 copyNumber: startCopyNumber + i,
                 isBorrowed: false,
                 status: 'disponible',
@@ -467,7 +474,7 @@ module.exports = {
     createLoan,
     returnBook,
     postponeLoan,
-    getLoansByStudent,
+    getLoansByUser,
     getOverdueLoans,
     getLoanHistory,
     createBookCopies

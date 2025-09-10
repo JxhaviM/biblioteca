@@ -6,10 +6,18 @@ const LoanSchema = new mongoose.Schema({
         ref: 'Book',
         required: [true, 'La referencia al libro es requerida']
     },
-    studentId: {
+    userId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Student',
-        required: [true, 'La referencia al estudiante es requerida']
+        ref: 'User',
+        required: [true, 'La referencia al usuario es requerida']
+    },
+    tipoPersona: {
+        type: String,
+        required: [true, 'El tipo de persona es requerido'],
+        enum: {
+            values: ['Estudiante', 'Profesor', 'Colaborador', 'Publico'],
+            message: 'El tipo de persona debe ser: Estudiante, Profesor, Colaborador o Publico'
+        }
     },
     copyNumber: {
         type: Number,
@@ -64,6 +72,16 @@ const LoanSchema = new mongoose.Schema({
     returnedBy: {
         type: String,
         trim: true
+    },
+    
+    // Soft Delete
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+    deletedAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true
@@ -71,9 +89,12 @@ const LoanSchema = new mongoose.Schema({
 
 // Índices compuestos para optimizar consultas
 LoanSchema.index({ bookId: 1, copyNumber: 1 });
-LoanSchema.index({ studentId: 1, status: 1 });
+LoanSchema.index({ userId: 1, status: 1 });
 LoanSchema.index({ status: 1, dueDate: 1 });
 LoanSchema.index({ isBorrowed: 1, status: 1 });
+LoanSchema.index({ tipoPersona: 1, status: 1 });
+LoanSchema.index({ isActive: 1 });
+LoanSchema.index({ isActive: 1, status: 1 });
 
 // Middleware para calcular si el préstamo está atrasado
 LoanSchema.pre('save', function(next) {
@@ -144,10 +165,10 @@ LoanSchema.methods.returnBook = function(returnedBy = 'Sistema', notes = '') {
     return this;
 };
 
-// Método estático para encontrar préstamos activos de un estudiante
-LoanSchema.statics.findActiveLoansForStudent = function(studentId) {
+// Método estático para encontrar préstamos activos de un usuario
+LoanSchema.statics.findActiveLoansForUser = function(userId) {
     return this.find({
-        studentId: studentId,
+        userId: userId,
         isBorrowed: true,
         status: { $in: ['prestado', 'atrasado'] }
     }).populate('bookId', 'title author isbn');
@@ -161,7 +182,7 @@ LoanSchema.statics.findOverdueLoans = function() {
         dueDate: { $lt: now },
         status: { $in: ['prestado', 'atrasado'] }
     }).populate('bookId', 'title author isbn')
-      .populate('studentId', 'name idNumber grade');
+      .populate('userId', 'username tipoPersona personRef');
 };
 
 // Método estático para verificar disponibilidad de un libro
@@ -193,6 +214,41 @@ LoanSchema.statics.getBookAvailability = function(bookId) {
             }
         }
     ]);
+};
+
+// Métodos para soft delete
+LoanSchema.statics.findActive = function() {
+    return this.find({ isActive: true });
+};
+
+LoanSchema.statics.findActiveLoansForUser = function(userId) {
+    return this.find({ 
+        userId: userId, 
+        isBorrowed: true, 
+        status: { $in: ['prestado', 'atrasado'] },
+        isActive: true 
+    });
+};
+
+LoanSchema.statics.findActiveLoansForBook = function(bookId) {
+    return this.find({ 
+        bookId: bookId, 
+        isBorrowed: true, 
+        status: { $in: ['prestado', 'atrasado'] },
+        isActive: true 
+    });
+};
+
+LoanSchema.methods.softDelete = function() {
+    this.isActive = false;
+    this.deletedAt = new Date();
+    return this.save();
+};
+
+LoanSchema.methods.restore = function() {
+    this.isActive = true;
+    this.deletedAt = null;
+    return this.save();
 };
 
 module.exports = mongoose.model('Loan', LoanSchema);

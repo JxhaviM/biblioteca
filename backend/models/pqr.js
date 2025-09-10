@@ -32,9 +32,34 @@ const PqrSchema = new mongoose.Schema({
   assignedTo: { type: String },
   actionsHistory: { type: [ActionSchema], default: [] },
   slaTargetHours: { type: Number },
-  consentDataProcessing: { type: Boolean, default: false }
+  consentDataProcessing: { type: Boolean, default: false },
+  
+  // Soft Delete
+  isActive: { type: Boolean, default: true },
+  deletedAt: { type: Date, default: null }
 }, {
   timestamps: true
 });
+
+// Índices para soft delete
+PqrSchema.index({ isActive: 1 });
+PqrSchema.index({ isActive: 1, status: 1 });
+
+// Métodos para soft delete
+PqrSchema.statics.findActive = function() {
+  return this.find({ isActive: true });
+};
+
+PqrSchema.methods.softDelete = function() {
+  this.isActive = false;
+  this.deletedAt = new Date();
+  return this.save();
+};
+
+PqrSchema.methods.restore = function() {
+  this.isActive = true;
+  this.deletedAt = null;
+  return this.save();
+};
 
 module.exports = mongoose.model('Pqr', PqrSchema);
