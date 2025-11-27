@@ -1,0 +1,269 @@
+const mongoose = require('mongoose');
+
+const LoanSchema = new mongoose.Schema({
+    bookId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Book',
+        required: [true, 'La referencia al libro es requerida']
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: function() {
+            // Requerir userId solo cuando el préstamo está activo (no disponible ni pendiente)
+            return !['disponible', 'pendiente', 'rechazado'].includes(this.status);
+        },
+        validate: {
+            validator: function(v) {
+                // Si el status es 'disponible' o 'pendiente' o 'rechazado', userId puede ser null
+                return ['disponible', 'pendiente', 'rechazado'].includes(this.status) || v != null;
+            },
+            message: 'userId es requerido para préstamos activos'
+        }
+    },
+    tipoPersona: {
+        type: String,
+        required: function() {
+            // Requerir tipoPersona solo cuando el préstamo está activo (no disponible ni pendiente ni rechazado)
+            return !['disponible', 'pendiente', 'rechazado'].includes(this.status);
+        },
+        enum: {
+            values: ['Estudiante', 'Profesor', 'Colaborador', 'Publico'],
+            message: 'El tipo de persona debe ser: Estudiante, Profesor, Colaborador o Publico'
+        }
+    },
+    copyNumber: {
+        type: Number,
+        required: function() {
+            // Requerir número de copia cuando está prestado/atrasado/devuelto/etc., no para pendiente/disponible/rechazado
+            return !['disponible', 'pendiente', 'rechazado'].includes(this.status);
+        },
+        min: [1, 'El número de copia debe ser mayor a 0']
+    },
+    isBorrowed: {
+        type: Boolean,
+        default: true
+    },
+    status: {
+        type: String,
+        enum: {
+            values: ['disponible', 'pendiente', 'rechazado', 'prestado', 'atrasado', 'devuelto', 'perdido', 'dañado'],
+            message: 'El estado debe ser: disponible, pendiente, rechazado, prestado, atrasado, devuelto, perdido o dañado'
+        },
+        default: 'prestado'
+    },
+    loanStartDate: {
+        type: Date
+    },
+    dueDate: {
+        type: Date
+    },
+    returnDate: {
+        type: Date,
+        default: null
+    },
+    renewalCount: {
+        type: Number,
+        default: 0,
+        min: [0, 'El número de renovaciones no puede ser negativo']
+    },
+    maxRenewals: {
+        type: Number,
+        default: 2,
+        min: [0, 'El máximo de renovaciones no puede ser negativo']
+    },
+    notes: {
+        type: String,
+        trim: true,
+        maxLength: [500, 'Las notas no pueden exceder 500 caracteres']
+    },
+    loanedBy: {
+        type: String,
+        trim: true,
+        default: 'Sistema'
+    },
+    returnedBy: {
+        type: String,
+        trim: true
+    },
+    
+    // Soft Delete
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+    deletedAt: {
+        type: Date,
+        default: null
+    }
+}, {
+    timestamps: true
+});
+
+// Índices compuestos para optimizar consultas
+LoanSchema.index({ bookId: 1, copyNumber: 1 });
+LoanSchema.index({ userId: 1, status: 1 });
+LoanSchema.index({ status: 1, dueDate: 1 });
+LoanSchema.index({ isBorrowed: 1, status: 1 });
+LoanSchema.index({ tipoPersona: 1, status: 1 });
+LoanSchema.index({ isActive: 1 });
+LoanSchema.index({ isActive: 1, status: 1 });
+
+// Middleware para calcular si el préstamo está atrasado
+LoanSchema.pre('save', function(next) {
+    const now = new Date();
+    
+    // Solo actualizar a 'atrasado' si está prestado y pasó la fecha de vencimiento
+    if (this.isBorrowed && this.status === 'prestado' && this.dueDate && this.dueDate < now) {
+        this.status = 'atrasado';
+    }
+    
+    // Si se está devolviendo, actualizar campos relevantes
+    if (!this.isBorrowed && this.status === 'prestado') {
+        this.status = 'devuelto';
+        this.returnDate = now;
+    }
+    
+    next();
+});
+
+// Método para verificar si el préstamo está atrasado
+LoanSchema.methods.isOverdue = function() {
+    const now = new Date();
+    return this.isBorrowed && this.dueDate < now;
+};
+
+// Método para calcular días de atraso
+LoanSchema.methods.getOverdueDays = function() {
+    if (!this.isOverdue()) return 0;
+    
+    const now = new Date();
+    const diffTime = Math.abs(now - this.dueDate);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// Método para renovar préstamo
+LoanSchema.methods.renewLoan = function(additionalDays = 7) {
+    if (this.renewalCount >= this.maxRenewals) {
+        throw new Error('Se ha alcanzado el máximo número de renovaciones permitidas');
+    }
+    
+    if (this.status !== 'prestado' && this.status !== 'atrasado') {
+        throw new Error('Solo se pueden renovar libros prestados o atrasados');
+    }
+    
+    // Agregar días a la fecha de vencimiento
+    this.dueDate = new Date(this.dueDate.getTime() + (additionalDays * 24 * 60 * 60 * 1000));
+    this.renewalCount += 1;
+    
+    // Si estaba atrasado y se renueva, cambiar a prestado
+    if (this.status === 'atrasado') {
+        this.status = 'prestado';
+    }
+    
+    return this;
+};
+
+// Método para devolver libro
+LoanSchema.methods.returnBook = function(returnedBy = 'Sistema', notes = '') {
+    this.isBorrowed = false;
+    this.status = 'disponible';  // ✅ Volver a disponible para que pueda prestarse otra vez
+    this.returnDate = new Date();
+    this.returnedBy = returnedBy;
+    this.userId = null;  // ✅ Limpiar el usuario
+    this.tipoPersona = null;  // ✅ Limpiar tipo de persona
+    
+    if (notes) {
+        this.notes = this.notes ? `${this.notes}. ${notes}` : notes;
+    }
+    
+    return this;
+};
+
+// Método estático para encontrar préstamos activos de un usuario
+LoanSchema.statics.findActiveLoansForUser = function(userId) {
+    return this.find({
+        userId: userId,
+        isBorrowed: true,
+        status: { $in: ['prestado', 'atrasado'] }
+    }).populate('bookId', 'title author isbn');
+};
+
+// Método estático para encontrar préstamos atrasados
+LoanSchema.statics.findOverdueLoans = function() {
+    const now = new Date();
+    return this.find({
+        isBorrowed: true,
+        dueDate: { $lt: now },
+        status: { $in: ['prestado', 'atrasado'] }
+    }).populate('bookId', 'title author isbn')
+      .populate('userId', 'username tipoPersona personRef');
+};
+
+// Método estático para verificar disponibilidad de un libro
+LoanSchema.statics.getBookAvailability = function(bookId) {
+    return this.aggregate([
+        { $match: { bookId: new mongoose.Types.ObjectId(bookId) } },
+        {
+            $group: {
+                _id: '$bookId',
+                totalCopies: { $sum: 1 },
+                availableCopies: {
+                    $sum: {
+                        $cond: [
+                            { $eq: ['$status', 'disponible'] },
+                            1,
+                            0
+                        ]
+                    }
+                },
+                borrowedCopies: {
+                    $sum: {
+                        $cond: [
+                            { $in: ['$status', ['prestado', 'atrasado']] },
+                            1,
+                            0
+                        ]
+                    }
+                }
+            }
+        }
+    ]);
+};
+
+// Métodos para soft delete
+LoanSchema.statics.findActive = function() {
+    return this.find({ isActive: true });
+};
+
+LoanSchema.statics.findActiveLoansForUser = function(userId) {
+    return this.find({ 
+        userId: userId, 
+        isBorrowed: true, 
+        status: { $in: ['prestado', 'atrasado'] },
+        isActive: true 
+    });
+};
+
+LoanSchema.statics.findActiveLoansForBook = function(bookId) {
+    return this.find({ 
+        bookId: bookId, 
+        isBorrowed: true, 
+        status: { $in: ['prestado', 'atrasado'] },
+        isActive: true 
+    });
+};
+
+LoanSchema.methods.softDelete = function() {
+    this.isActive = false;
+    this.deletedAt = new Date();
+    return this.save();
+};
+
+LoanSchema.methods.restore = function() {
+    this.isActive = true;
+    this.deletedAt = null;
+    return this.save();
+};
+
+module.exports = mongoose.model('Loan', LoanSchema);

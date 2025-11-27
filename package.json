@@ -1,0 +1,28 @@
+{
+  "name": "biblioteca",
+  "version": "1.0.0",
+  "description": "Sistema de gestión de biblioteca - Monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "start": "npm run start --prefix backend",
+    "start:backend": "npm run start --prefix backend",
+    "start:frontend": "npm run dev --prefix frontend",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "clean": "rm -rf node_modules && rm -rf backend/node_modules && rm -rf frontend/node_modules",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["biblioteca", "management", "system", "fullstack"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

@@ -1,0 +1,1001 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  FileText, 
+  Download, 
+  Calendar, 
+  Users, 
+  BookOpen, 
+  TrendingUp, 
+  Activity,
+  RefreshCw,
+  BarChart3,
+  AlertCircle,
+  Clock,
+  UserCheck,
+  Book,
+  Library,
+  Filter,
+  Eye,
+  FileDown
+} from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { useAuth } from '../hooks/useAuth';
+import { useUserData } from '../hooks/useUserData';
+import {
+  getSystemStats,
+  getUsersReport,
+  getBooksReport,
+  getLoansReport,
+  getSystemActivity,
+  exportReport,
+  getRealTimeStats
+} from '../api/reports';
+
+interface SystemStats {
+  totalUsers: number;
+  totalBooks: number;
+  totalLoans: number;
+  activeUsers: number;
+  availableBooks: number;
+  activeLoans: number;
+  overdueLoans: number;
+  usersByRole: { role: string; count: number }[];
+  booksByGenre: { genre: string; count: number }[];
+  loansByMonth: { month: string; count: number }[];
+}
+
+interface UserReport {
+  _id: string;
+  username: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+  lastLogin: string;
+  person?: {
+    nombre1: string;
+    apellido1: string;
+    tipoPersona: string;
+  };
+  loansCount: number;
+  activeLoans: number;
+}
+
+interface BookReport {
+  _id: string;
+  title: string;
+  author: string;
+  isbn: string;
+  genre: string[];
+  publishedYear: number;
+  availability: {
+    total: number;
+    available: number;
+    borrowed: number;
+  };
+  createdAt: string;
+  loansCount: number;
+  activeLoans: number;
+  totalTimesLoaned: number;
+}
+
+interface LoanReport {
+  _id: string;
+  loanDate: string;
+  dueDate: string;
+  returnDate?: string;
+  status: string;
+  loanType: string;
+  user?: {
+    username: string;
+    role: string;
+  };
+  person?: {
+    nombre1: string;
+    apellido1: string;
+  };
+  book?: {
+    title: string;
+    author: string;
+    isbn: string;
+  };
+  isOverdue: boolean;
+}
+
+interface ActivityLog {
+  _id: string;
+  action: string;
+  resource: string;
+  timestamp: string;
+  userId?: {
+    username: string;
+  };
+  details?: any;
+}
+
+interface RealTimeStats {
+  activeUsersNow: number;
+  loansToday: number;
+  returnsToday: number;
+  newUsersToday: number;
+  timestamp: string;
+}
+
+const ReportsPage: React.FC = () => {
+  const auth = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<SystemStats | null>(null);
+  const [selectedReport, setSelectedReport] = useState<string>('overview');
+  const [dateRange] = useState({
+    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+
+  // Estados para diferentes reportes
+  const [usersReport, setUsersReport] = useState<UserReport[]>([]);
+  const [booksReport, setBooksReport] = useState<BookReport[]>([]);
+  const [loansReport, setLoansReport] = useState<LoanReport[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [realTimeStats, setRealTimeStats] = useState<RealTimeStats | null>(null);
+
+  // Estados de paginación
+  const [usersPage, setUsersPage] = useState(1);
+  const [booksPage, setBooksPage] = useState(1);
+  const [loansPage, setLoansPage] = useState(1);
+
+  // Estados de filtros
+  const [userFilters, setUserFilters] = useState({
+    role: '',
+    status: '',
+    startDate: dateRange.start,
+    endDate: dateRange.end
+  });
+  const [bookFilters, setBookFilters] = useState({
+    genre: '',
+    available: '',
+    startDate: dateRange.start,
+    endDate: dateRange.end
+  });
+  const [loanFilters, setLoanFilters] = useState({
+    status: '',
+    overdue: '',
+    startDate: dateRange.start,
+    endDate: dateRange.end
+  });
+
+  // Determinar el rol del usuario para filtrar datos
+  const { user: authUser } = useUserData();
+  const userRole = authUser?.role || 'user';
+  const isSuperAdmin = userRole === 'superadmin';
+  const isAdmin = userRole === 'admin';
+
+  // Tipos de reportes disponibles según el rol
+  const getReportTypes = () => {
+    const baseReports = [
+      {
+        id: 'overview',
+        name: 'Vista General',
+        icon: BarChart3,
+        description: isSuperAdmin ? 'Resumen completo del sistema' : 'Resumen de la biblioteca'
+      },
+      {
+        id: 'users',
+        name: 'Reporte de Usuarios',
+        icon: Users,
+        description: isSuperAdmin ? 'Estadísticas de todos los usuarios' : 'Estadísticas de usuarios y préstamos'
+      },
+      {
+        id: 'books',
+        name: 'Reporte de Libros',
+        icon: BookOpen,
+        description: 'Estadísticas del catálogo y disponibilidad'
+      },
+      {
+        id: 'loans',
+        name: 'Reporte de Préstamos',
+        icon: Calendar,
+        description: 'Estadísticas de préstamos y devoluciones'
+      }
+    ];
+
+    // Solo superadmin puede ver logs y actividad del sistema
+    if (isSuperAdmin) {
+      return [
+        ...baseReports,
+        {
+          id: 'activity',
+          name: 'Actividad del Sistema',
+          icon: Activity,
+          description: 'Registro de actividad reciente'
+        }
+      ];
+    }
+
+    return baseReports;
+  };
+
+  const reportTypes = getReportTypes();
+
+  useEffect(() => {
+    fetchStats();
+  }, [dateRange]);
+
+  useEffect(() => {
+    // Cargar datos según el reporte seleccionado
+    switch (selectedReport) {
+      case 'users':
+        fetchUsersReport();
+        break;
+      case 'books':
+        fetchBooksReport();
+        break;
+      case 'loans':
+        fetchLoansReport();
+        break;
+      case 'activity':
+        fetchSystemActivity();
+        break;
+    }
+  }, [selectedReport]);
+
+  // Cargar estadísticas en tiempo real cada 30 segundos
+  useEffect(() => {
+    fetchStats();
+    fetchRealTimeStats();
+    // const interval = setInterval(fetchRealTimeStats, 30000);
+    // return (
+    <MainLayout showSidebar={true}>) => clearInterval(interval);
+  }, [userRole]);
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      
+      // Datos de ejemplo mientras el backend no está disponible
+      const mockStats = {
+        totalUsers: 150,
+        totalBooks: 500,
+        totalLoans: 1200,
+        activeUsers: 25,
+        availableBooks: 475,
+        activeLoans: 25,
+        overdueLoans: 3,
+        usersByRole: [
+          { role: 'admin', count: 5 },
+          { role: 'user', count: 145 }
+        ],
+        booksByGenre: [
+          { genre: 'Ficción', count: 350 },
+          { genre: 'No Ficción', count: 280 },
+          { genre: 'Ciencia', count: 180 },
+          { genre: 'Historia', count: 150 },
+          { genre: 'Tecnología', count: 120 }
+        ],
+        loansByMonth: [
+          { month: 'Ene', count: 120 },
+          { month: 'Feb', count: 135 },
+          { month: 'Mar', count: 145 },
+          { month: 'Abr', count: 160 },
+          { month: 'May', count: 175 },
+          { month: 'Jun', count: 190 }
+        ]
+      };
+      
+      setStats(mockStats);
+      toast.success('Datos de ejemplo cargados');
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      toast.error('Error al cargar estadísticas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para cargar reporte de usuarios
+  const fetchUsersReport = async (page: number = 1) => {
+    try {
+      const response = await getUsersReport(userRole, {
+        ...userFilters,
+        page: page.toString(),
+        limit: '50'
+      });
+      
+      if (response.success) {
+        setUsersReport(response.data);
+        setUsersPage(page);
+      } else {
+        throw new Error(response.message || 'Error al cargar reporte de usuarios');
+      }
+    } catch (error) {
+      console.error('Error fetching users report:', error);
+      toast.error('Error al cargar reporte de usuarios');
+    }
+  };
+
+  // Función para cargar reporte de libros
+  const fetchBooksReport = async (page: number = 1) => {
+    try {
+      const response = await getBooksReport(userRole, {
+        ...bookFilters,
+        page: page.toString(),
+        limit: '50'
+      });
+      
+      if (response.success) {
+        setBooksReport(response.data);
+        setBooksPage(page);
+      } else {
+        throw new Error(response.message || 'Error al cargar reporte de libros');
+      }
+    } catch (error) {
+      console.error('Error fetching books report:', error);
+      toast.error('Error al cargar reporte de libros');
+    }
+  };
+
+  // Función para cargar reporte de préstamos
+  const fetchLoansReport = async (page: number = 1) => {
+    try {
+      const response = await getLoansReport(userRole, {
+        ...loanFilters,
+        page: page.toString(),
+        limit: '50'
+      });
+      
+      if (response.success) {
+        setLoansReport(response.data);
+        setLoansPage(page);
+      } else {
+        throw new Error(response.message || 'Error al cargar reporte de préstamos');
+      }
+    } catch (error) {
+      console.error('Error fetching loans report:', error);
+      toast.error('Error al cargar reporte de préstamos');
+    }
+  };
+
+  // Función para cargar actividad del sistema (solo superadmin)
+  const fetchSystemActivity = async () => {
+    if (!isSuperAdmin) return;
+    
+    try {
+      const response = await getSystemActivity(userRole);
+      
+      if (response.success) {
+        setActivityLogs(response.data);
+      } else {
+        throw new Error(response.message || 'Error al cargar actividad del sistema');
+      }
+    } catch (error) {
+      console.error('Error fetching system activity:', error);
+      toast.error('Error al cargar actividad del sistema');
+    }
+  };
+
+  // Función para cargar estadísticas en tiempo real
+  const fetchRealTimeStats = async () => {
+    try {
+      // Datos de ejemplo mientras el backend no está disponible
+      const mockRealTimeStats = {
+        activeUsersNow: 15,
+        loansToday: 8,
+        returnsToday: 5,
+        newUsersToday: 2,
+        timestamp: new Date().toISOString()
+      };
+      
+      setRealTimeStats(mockRealTimeStats);
+    } catch (error) {
+      console.error('Error fetching real-time stats:', error);
+      // No mostrar error para no saturar la consola
+    }
+  };
+
+  // Función para exportar reportes
+  const handleExportReport = async (reportType: string, format: 'excel' | 'csv' = 'excel') => {
+    try {
+      await exportReport(reportType, format, {
+        startDate: dateRange.start,
+        endDate: dateRange.end,
+        ...userFilters,
+        ...bookFilters,
+        ...loanFilters
+      });
+      
+      toast.success(`Reporte ${reportType} exportado correctamente`);
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      toast.error('Error al exportar reporte');
+    }
+  };
+
+  const exportToCSV = (data: any[], filename: string) => {
+    if (!data || data.length === 0) {
+      toast.error('No hay datos para exportar');
+      return;
+    }
+
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Reporte exportado exitosamente');
+  };
+
+  const generateReport = (type: string) => {
+    if (!stats) return;
+
+    let reportData: any[] = [];
+    let filename = '';
+
+    switch (type) {
+      case 'users':
+        reportData = stats.usersByRole.map(item => ({
+          'Tipo de Usuario': item.role,
+          'Cantidad': item.count,
+          'Porcentaje': ((item.count / stats.totalUsers) * 100).toFixed(1) + '%'
+        }));
+        filename = 'reporte_usuarios';
+        break;
+      
+      case 'books':
+        reportData = stats.booksByGenre.map(item => ({
+          'Género': item.genre,
+          'Cantidad': item.count,
+          'Porcentaje': ((item.count / stats.totalBooks) * 100).toFixed(1) + '%'
+        }));
+        filename = 'reporte_libros';
+        break;
+      
+      case 'loans':
+        reportData = stats.loansByMonth.map(item => ({
+          'Mes': item.month,
+          'Préstamos': item.count
+        }));
+        filename = 'reporte_prestamos';
+        break;
+      
+      case 'overview':
+        reportData = [{
+          'Métrica': 'Total Usuarios',
+          'Valor': stats.totalUsers,
+          'Fecha': new Date().toLocaleDateString()
+        }, {
+          'Métrica': 'Total Libros',
+          'Valor': stats.totalBooks,
+          'Fecha': new Date().toLocaleDateString()
+        }, {
+          'Métrica': 'Total Préstamos',
+          'Valor': stats.totalLoans,
+          'Fecha': new Date().toLocaleDateString()
+        }, {
+          'Métrica': 'Usuarios Activos',
+          'Valor': stats.activeUsers,
+          'Fecha': new Date().toLocaleDateString()
+        }, {
+          'Métrica': 'Libros Disponibles',
+          'Valor': stats.availableBooks,
+          'Fecha': new Date().toLocaleDateString()
+        }, {
+          'Métrica': 'Préstamos Activos',
+          'Valor': stats.activeLoans,
+          'Fecha': new Date().toLocaleDateString()
+        }, {
+          'Métrica': 'Préstamos Vencidos',
+          'Valor': stats.overdueLoans,
+          'Fecha': new Date().toLocaleDateString()
+        }];
+        filename = 'reporte_general';
+        break;
+    }
+
+    exportToCSV(reportData, filename);
+  };
+
+  const StatCard = ({ title, value, icon: Icon, color, change }: any) => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+          {change && (
+            <p className={`text-sm mt-2 ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {change >= 0 ? '+' : ''}{change}% vs mes anterior
+            </p>
+          )}
+        </div>
+    </MainLayout>
+        <div className={`p-3 rounded-lg ${color}`}>
+          <Icon className="h-6 w-6 text-white" />
+        </div>
+    </MainLayout>
+      </div>
+    </MainLayout>
+    </div>
+    </MainLayout>
+  );
+
+  if (loading) {
+    return (
+    <MainLayout showSidebar={true}>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Cargando estadísticas...</p>
+        </div>
+    </MainLayout>
+      </div>
+    </MainLayout>
+    );
+  }
+
+  if (!stats) {
+    return (
+    <MainLayout showSidebar={true}>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+          <p className="text-gray-600">No se pudieron cargar las estadísticas</p>
+          <button
+            onClick={fetchStats}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Reintentar
+          </button>
+        </div>
+    </MainLayout>
+      </div>
+    </MainLayout>
+    );
+  }
+
+  const content = (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                <FileText className="h-8 w-8 text-blue-600 mr-3" />
+                {isSuperAdmin ? 'Reportes y Estadísticas del Sistema' : 'Reportes y Estadísticas de Biblioteca'}
+              </h1>
+              <p className="text-gray-600 mt-2">
+                {isSuperAdmin 
+                  ? 'Vista completa de todas las operaciones y usuarios del sistema' 
+                  : 'Estadísticas de préstamos, usuarios y actividades de la biblioteca'
+                }
+              </p>
+            </div>
+    </MainLayout>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <Calendar className="h-4 w-4" />
+                <span>{dateRange.start} - {dateRange.end}</span>
+              </div>
+    </MainLayout>
+              <button
+                onClick={fetchStats}
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Actualizar datos"
+              >
+                <RefreshCw className="h-5 w-5" />
+              </button>
+            </div>
+    </MainLayout>
+          </div>
+    </MainLayout>
+        </div>
+    </MainLayout>
+
+        {/* Report Type Selector */}
+        <div className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {reportTypes.map((report) => {
+              const Icon = report.icon;
+              return (
+    <MainLayout showSidebar={true}>
+                <button
+                  key={report.id}
+                  onClick={() => setSelectedReport(report.id)}
+                  className={`p-4 rounded-lg border text-left transition-all ${
+                    selectedReport === report.id
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center mb-2">
+                    <Icon className="h-5 w-5 mr-2" />
+                    <span className="font-medium">{report.name}</span>
+                  </div>
+    </MainLayout>
+                  <p className="text-sm opacity-75">{report.description}</p>
+                </button>
+              );
+            })}
+          </div>
+    </MainLayout>
+        </div>
+    </MainLayout>
+
+        {/* Export Options */}
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={() => generateReport(selectedReport)}
+            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar a CSV
+          </button>
+        </div>
+    </MainLayout>
+
+        {/* Stats Overview */}
+        {selectedReport === 'overview' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard
+                title="Total Usuarios"
+                value={stats.totalUsers}
+                icon={Users}
+                color="bg-blue-600"
+                change={12}
+              />
+              <StatCard
+                title="Total Libros"
+                value={stats.totalBooks}
+                icon={BookOpen}
+                color="bg-green-600"
+                change={8}
+              />
+              <StatCard
+                title="Total Préstamos"
+                value={stats.totalLoans}
+                icon={Library}
+                color="bg-purple-600"
+                change={15}
+              />
+              <StatCard
+                title="Usuarios Activos"
+                value={stats.activeUsers}
+                icon={UserCheck}
+                color="bg-orange-600"
+                change={5}
+              />
+            </div>
+    </MainLayout>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Usuarios por Rol</h3>
+                <div className="space-y-3">
+                  {stats.usersByRole.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">{item.role}</span>
+                      <div className="flex items-center">
+                        <div className="w-24 bg-gray-200 rounded-full h-2 mr-3">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
+                            style={{ width: `${(item.count / stats.totalUsers) * 100}%` }}
+                          />
+                        </div>
+    </MainLayout>
+                        <span className="text-sm text-gray-600">{item.count}</span>
+                      </div>
+    </MainLayout>
+                    </div>
+    </MainLayout>
+                  ))}
+                </div>
+    </MainLayout>
+              </div>
+    </MainLayout>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Libros por Género</h3>
+                <div className="space-y-3">
+                  {stats.booksByGenre.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">{item.genre}</span>
+                      <div className="flex items-center">
+                        <div className="w-24 bg-gray-200 rounded-full h-2 mr-3">
+                          <div
+                            className="bg-green-600 h-2 rounded-full"
+                            style={{ width: `${(item.count / stats.totalBooks) * 100}%` }}
+                          />
+                        </div>
+    </MainLayout>
+                        <span className="text-sm text-gray-600">{item.count}</span>
+                      </div>
+    </MainLayout>
+                    </div>
+    </MainLayout>
+                  ))}
+                </div>
+    </MainLayout>
+              </div>
+    </MainLayout>
+            </div>
+    </MainLayout>
+          </div>
+    </MainLayout>
+        )}
+
+        {/* Users Report */}
+        {selectedReport === 'users' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Estadísticas de Usuarios</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tipo de Usuario
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cantidad
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Porcentaje
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {stats.usersByRole.map((item, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {item.role}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.count}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {((item.count / stats.totalUsers) * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+    </MainLayout>
+          </div>
+    </MainLayout>
+        )}
+
+        {/* Books Report */}
+        {selectedReport === 'books' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Estadísticas de Libros</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900">{stats.totalBooks}</p>
+                <p className="text-sm text-gray-600">Total Libros</p>
+              </div>
+    </MainLayout>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-green-600">{stats.availableBooks}</p>
+                <p className="text-sm text-gray-600">Disponibles</p>
+              </div>
+    </MainLayout>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-orange-600">{stats.totalBooks - stats.availableBooks}</p>
+                <p className="text-sm text-gray-600">En Préstamo</p>
+              </div>
+    </MainLayout>
+            </div>
+    </MainLayout>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Género
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cantidad
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Porcentaje
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {stats.booksByGenre.map((item, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {item.genre}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.count}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {((item.count / stats.totalBooks) * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+    </MainLayout>
+          </div>
+    </MainLayout>
+        )}
+
+        {/* Loans Report */}
+        {selectedReport === 'loans' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center">
+                  <div className="p-3 bg-blue-100 rounded-lg mr-4">
+                    <Library className="h-6 w-6 text-blue-600" />
+                  </div>
+    </MainLayout>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{stats.activeLoans}</p>
+                    <p className="text-sm text-gray-600">Préstamos Activos</p>
+                  </div>
+    </MainLayout>
+                </div>
+    </MainLayout>
+              </div>
+    </MainLayout>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center">
+                  <div className="p-3 bg-red-100 rounded-lg mr-4">
+                    <AlertCircle className="h-6 w-6 text-red-600" />
+                  </div>
+    </MainLayout>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{stats.overdueLoans}</p>
+                    <p className="text-sm text-gray-600">Préstamos Vencidos</p>
+                  </div>
+    </MainLayout>
+                </div>
+    </MainLayout>
+              </div>
+    </MainLayout>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center">
+                  <div className="p-3 bg-green-100 rounded-lg mr-4">
+                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  </div>
+    </MainLayout>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{stats.totalLoans}</p>
+                    <p className="text-sm text-gray-600">Total Histórico</p>
+                  </div>
+    </MainLayout>
+                </div>
+    </MainLayout>
+              </div>
+    </MainLayout>
+            </div>
+    </MainLayout>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Préstamos por Mes</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Mes
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Préstamos
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tendencia
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {stats.loansByMonth.map((item, index) => (
+                      <tr key={index}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {item.month}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.count}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {index > 0 && item.count > stats.loansByMonth[index - 1].count ? (
+                            <span className="text-green-600 flex items-center">
+                              <TrendingUp className="h-4 w-4 mr-1" />
+                              +{item.count - stats.loansByMonth[index - 1].count}
+                            </span>
+                          ) : index > 0 ? (
+                            <span className="text-red-600 flex items-center">
+                              <TrendingUp className="h-4 w-4 mr-1 rotate-180" />
+                              {stats.loansByMonth[index - 1].count - item.count}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+    </MainLayout>
+            </div>
+    </MainLayout>
+          </div>
+    </MainLayout>
+        )}
+
+        {/* Activity Report */}
+        {selectedReport === 'activity' && isSuperAdmin && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Actividad Reciente</h3>
+            <div className="space-y-4">
+              {activityLogs.length > 0 ? (
+                activityLogs.map((activity, index) => (
+                  <div key={index} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                    <div className="flex items-center">
+                      <div className="p-2 bg-gray-100 rounded-lg mr-3">
+                        <Activity className="h-4 w-4 text-gray-600" />
+                      </div>
+    </MainLayout>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {activity.userId?.username || 'Usuario desconocido'}
+                          {activity.resource && ` - ${activity.resource}`}
+                        </p>
+                        <p className="text-xs text-gray-500 capitalize">
+                          {activity.action}
+                        </p>
+                      </div>
+    </MainLayout>
+                    </div>
+    </MainLayout>
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Clock className="h-4 w-4 mr-1" />
+                      {new Date(activity.timestamp).toLocaleString()}
+                    </div>
+    </MainLayout>
+                  </div>
+    </MainLayout>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No hay actividad reciente para mostrar</p>
+                </div>
+    </MainLayout>
+              )}
+            </div>
+    </MainLayout>
+          </div>
+    </MainLayout>
+        )}
+      </div>
+    </MainLayout>
+    </div>
+    </MainLayout>
+  );
+
+  // Si el usuario no está autenticado, mostrar el contenido sin layout
+  if (!authUser) {
+    return content;
+  }
+
+  return content;
+};
+
+export default ReportsPage;

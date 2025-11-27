@@ -1,0 +1,72 @@
+const express = require('express');
+const router = express.Router();
+const {
+    getDashboard,
+    getLoanReport,
+    getPopularBooksReport,
+    getActiveStudentsReport,
+    getUsersReport,
+    getBooksReport,
+    getSystemActivity,
+    runMaintenance,
+    getAutomaticReport,
+    getRealTimeStats
+} = require('../controllers/reportsController');
+
+// Middleware de autenticación (comentado por ahora, se puede activar después)
+// const { protect } = require('../middlewares/authMiddleware');
+
+// @desc    Obtener dashboard con estadísticas generales
+// @route   GET /api/reports/dashboard
+// @access  Private
+router.get('/dashboard', getDashboard);
+
+// @desc    Generar reporte de préstamos por período
+// @route   GET /api/reports/loans
+// @query   ?startDate=2024-01-01&endDate=2024-12-31&format=json|summary
+// @access  Private
+router.get('/loans', getLoanReport);
+
+// @desc    Obtener reporte de libros más populares
+// @route   GET /api/reports/popular-books
+// @query   ?period=30&limit=20
+// @access  Private
+router.get('/popular-books', getPopularBooksReport);
+
+// @desc    Obtener reporte de estudiantes más activos
+// @route   GET /api/reports/active-students
+// @query   ?period=30&limit=20
+// @access  Private
+router.get('/active-students', getActiveStudentsReport);
+
+// @desc    Ejecutar mantenimiento manual de la base de datos
+// @route   POST /api/reports/maintenance
+// @access  Private
+router.post('/maintenance', runMaintenance);
+
+// @desc    Obtener reporte de usuarios
+// @route   GET /api/reports/users
+// @access  Private
+router.get('/users', getUsersReport);
+
+// @desc    Obtener reporte de libros
+// @route   GET /api/reports/books
+// @access  Private
+router.get('/books', getBooksReport);
+
+// @desc    Obtener actividad del sistema
+// @route   GET /api/reports/activity
+// @access  Private
+router.get('/activity', getSystemActivity);
+
+// @desc    Generar reporte automático semanal
+// @route   GET /api/reports/automatic
+// @access  Private
+router.get('/automatic', getAutomaticReport);
+
+// @desc    Obtener estadísticas en tiempo real
+// @route   GET /api/reports/realtime
+// @access  Private
+router.get('/realtime', getRealTimeStats);
+
+module.exports = router;

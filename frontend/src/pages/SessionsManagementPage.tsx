@@ -1,0 +1,494 @@
+import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
+
+interface Session {
+  _id: string;
+  userId: string;
+  username: string;
+  userRole: string;
+  personName?: string;
+  ip: string;
+  userAgent?: string;
+  loginTime: string;
+  lastActivity: string;
+  isActive: boolean;
+  sessionId: string;
+  location?: {
+    country?: string;
+    city?: string;
+  };
+}
+
+interface SessionStats {
+  totalSessions: number;
+  activeSessions: number;
+  superadminSessions: number;
+  adminSessions: number;
+  userSessions: number;
+}
+
+const SessionsManagementPage: React.FC = () => {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<SessionStats | null>(null);
+  const [filters, setFilters] = useState({
+    role: 'all',
+    active: 'all',
+    search: '',
+    page: 1,
+    limit: 20
+  });
+  const [pagination, setPagination] = useState<any>(null);
+
+  useEffect(() => {
+    loadSessions();
+    loadStats();
+  }, [filters.role, filters.active, filters.page]);
+
+  const loadSessions = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      
+      if (filters.role !== 'all') params.append('role', filters.role);
+      if (filters.active !== 'all') params.append('active', filters.active);
+      if (filters.search) params.append('search', filters.search);
+      params.append('page', filters.page.toString());
+      params.append('limit', filters.limit.toString());
+
+      const response = await fetch(`${API_BASE_URL}/system/sessions?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al cargar sesiones');
+      }
+
+      const data = await response.json();
+      setSessions(data.sessions || []);
+      setPagination(data.pagination);
+    } catch (error) {
+      console.error('Error al cargar sesiones:', error);
+      // Datos de demostración si el backend no está disponible
+      const demoSessions: Session[] = [
+        {
+          _id: '1',
+          userId: 'user1',
+          username: 'superadmin',
+          userRole: 'superadmin',
+          personName: 'Administrador Principal',
+          ip: '192.168.1.100',
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          loginTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          lastActivity: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          isActive: true,
+          sessionId: 'sess_abc123',
+          location: { country: 'Colombia', city: 'Bogotá' }
+        },
+        {
+          _id: '2',
+          userId: 'user2',
+          username: 'admin_biblioteca',
+          userRole: 'admin',
+          personName: 'Juan Pérez',
+          ip: '192.168.1.101',
+          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          loginTime: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+          lastActivity: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          isActive: true,
+          sessionId: 'sess_def456',
+          location: { country: 'Colombia', city: 'Medellín' }
+        },
+        {
+          _id: '3',
+          userId: 'user3',
+          username: 'estudiante01',
+          userRole: 'user',
+          personName: 'María García',
+          ip: '192.168.1.102',
+          userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15',
+          loginTime: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+          lastActivity: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
+          isActive: true,
+          sessionId: 'sess_ghi789',
+          location: { country: 'Colombia', city: 'Cali' }
+        }
+      ];
+      setSessions(demoSessions);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/system/sessions/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al cargar estadísticas');
+      }
+
+      const data = await response.json();
+      setStats(data.stats);
+    } catch (error) {
+      console.error('Error al cargar estadísticas:', error);
+      // Datos de demostración
+      setStats({
+        totalSessions: 3,
+        activeSessions: 3,
+        superadminSessions: 1,
+        adminSessions: 1,
+        userSessions: 1
+      });
+    }
+  };
+
+  const terminateSession = async (sessionId: string) => {
+    if (!confirm('¿Estás seguro de que deseas terminar esta sesión? El usuario tendrá que iniciar sesión nuevamente.')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/system/sessions/${sessionId}/terminate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al terminar sesión');
+      }
+
+      alert('Sesión terminada exitosamente');
+      loadSessions();
+      loadStats();
+    } catch (error) {
+      console.error('Error al terminar sesión:', error);
+      alert('Error al terminar la sesión');
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role?.toLowerCase()) {
+      case 'superadmin': return 'bg-red-100 text-red-800 border-red-200';
+      case 'admin': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'user': return 'bg-green-100 text-green-800 border-green-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role?.toLowerCase()) {
+      case 'superadmin': return '👑';
+      case 'admin': return '👨‍💼';
+      case 'user': return '👤';
+      default: return '❓';
+    }
+  };
+
+  const formatUserAgent = (userAgent?: string) => {
+    if (!userAgent) return 'Desconocido';
+    
+    let browser = 'Desconocido';
+    let device = 'Desconocido';
+    
+    if (userAgent.includes('Chrome')) browser = 'Chrome';
+    else if (userAgent.includes('Firefox')) browser = 'Firefox';
+    else if (userAgent.includes('Safari')) browser = 'Safari';
+    else if (userAgent.includes('Edge')) browser = 'Edge';
+    
+    if (userAgent.includes('iPhone') || userAgent.includes('iPad')) device = 'iOS';
+    else if (userAgent.includes('Android')) device = 'Android';
+    else if (userAgent.includes('Windows')) device = 'Windows';
+    else if (userAgent.includes('Mac')) device = 'macOS';
+    else if (userAgent.includes('Linux')) device = 'Linux';
+    
+    return `${browser} / ${device}`;
+  };
+
+  const formatDuration = (loginTime: string, lastActivity: string) => {
+    const login = new Date(loginTime);
+    const activity = new Date(lastActivity);
+    const now = new Date();
+    
+    const totalDuration = Math.floor((now.getTime() - login.getTime()) / (1000 * 60));
+    const inactiveTime = Math.floor((now.getTime() - activity.getTime()) / (1000 * 60));
+    
+    if (inactiveTime > 30) {
+      return `${totalDuration} min (Inactivo: ${inactiveTime} min)`;
+    }
+    return `${totalDuration} min (Activo)`;
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">🔐 Gestión de Sesiones</h1>
+              <p className="text-gray-600 mt-2">Monitoreo y control de sesiones activas del sistema</p>
+            </div>
+    
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  loadSessions();
+                  loadStats();
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <span>🔄</span>
+                <span>Actualizar</span>
+              </button>
+              <button
+                onClick={() => window.history.back()}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                ← Volver
+              </button>
+            </div>
+    
+          </div>
+    
+        </div>
+    
+
+        {/* Estadísticas */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
+              <div className="text-sm text-gray-600">Total Sesiones</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.totalSessions}</div>
+            </div>
+    
+            <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
+              <div className="text-sm text-gray-600">Sesiones Activas</div>
+              <div className="text-2xl font-bold text-green-600">{stats.activeSessions}</div>
+            </div>
+    
+            <div className="bg-white p-4 rounded-lg shadow border-l-4 border-red-500">
+              <div className="text-sm text-gray-600">SuperAdmin</div>
+              <div className="text-2xl font-bold text-red-600">{stats.superadminSessions}</div>
+            </div>
+    
+            <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
+              <div className="text-sm text-gray-600">Admin</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.adminSessions}</div>
+            </div>
+    
+            <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
+              <div className="text-sm text-gray-600">Usuarios</div>
+              <div className="text-2xl font-bold text-green-600">{stats.userSessions}</div>
+            </div>
+    
+          </div>
+    
+        )}
+
+        {/* Filtros */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+              <select
+                value={filters.role}
+                onChange={(e) => setFilters({ ...filters, role: e.target.value, page: 1 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">Todos</option>
+                <option value="superadmin">👑 SuperAdmin</option>
+                <option value="admin">👨‍💼 Admin</option>
+                <option value="user">👤 Usuario</option>
+              </select>
+            </div>
+    
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+              <select
+                value={filters.active}
+                onChange={(e) => setFilters({ ...filters, active: e.target.value, page: 1 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">Todos</option>
+                <option value="true">🟢 Activas</option>
+                <option value="false">🔴 Inactivas</option>
+              </select>
+            </div>
+    
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                  placeholder="Buscar por usuario, IP o sesión..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  onKeyPress={(e) => e.key === 'Enter' && loadSessions()}
+                />
+                <button
+                  onClick={loadSessions}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  🔍 Buscar
+                </button>
+              </div>
+    
+            </div>
+    
+          </div>
+    
+        </div>
+    
+
+        {/* Tabla de Sesiones */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {loading ? (
+            <div className="p-12 text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <p className="text-gray-600 mt-4">Cargando sesiones...</p>
+            </div>
+    
+          ) : sessions.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">
+              No se encontraron sesiones activas
+            </div>
+    
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP / Ubicación</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispositivo</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inicio</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duración</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {sessions.map((session) => (
+                      <tr key={session._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{session.username}</span>
+                            <span className="text-xs text-gray-500">{session.personName}</span>
+                          </div>
+    
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(session.userRole)}`}>
+                            <span className="mr-1">{getRoleIcon(session.userRole)}</span>
+                            {session.userRole}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span className="font-mono text-xs">{session.ip}</span>
+                            {session.location && (
+                              <span className="text-xs text-gray-500">
+                                {session.location.city}, {session.location.country}
+                              </span>
+                            )}
+                          </div>
+    
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
+                          {formatUserAgent(session.userAgent)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                          <div className="text-xs">
+                            <div>{new Date(session.loginTime).toLocaleDateString()}</div>
+                            <div className="font-medium">{new Date(session.loginTime).toLocaleTimeString()}</div>
+                          </div>
+    
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                          {formatDuration(session.loginTime, session.lastActivity)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            session.isActive 
+                              ? 'bg-green-100 text-green-800 border-green-200' 
+                              : 'bg-red-100 text-red-800 border-red-200'
+                          }`}>
+                            {session.isActive ? '🟢 Activa' : '🔴 Inactiva'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => terminateSession(session.sessionId)}
+                              className="text-red-600 hover:text-red-900 text-sm font-medium"
+                              title="Terminar sesión"
+                            >
+                              🚫 Terminar
+                            </button>
+                          </div>
+    
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+    
+
+              {/* Paginación */}
+              {pagination && pagination.totalPaginas > 1 && (
+                <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t">
+                  <div className="text-sm text-gray-700">
+                    Mostrando {((pagination.pagina - 1) * pagination.limite) + 1} - {Math.min(pagination.pagina * pagination.limite, pagination.total)} de {pagination.total}
+                  </div>
+    
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setFilters({ ...filters, page: filters.page - 1 })}
+                      disabled={filters.page === 1}
+                      className="px-3 py-1 border rounded bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      ← Anterior
+                    </button>
+                    <span className="px-3 py-1">
+                      Página {filters.page} de {pagination.totalPaginas}
+                    </span>
+                    <button
+                      onClick={() => setFilters({ ...filters, page: filters.page + 1 })}
+                      disabled={filters.page === pagination.totalPaginas}
+                      className="px-3 py-1 border rounded bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+    
+                </div>
+    
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SessionsManagementPage;

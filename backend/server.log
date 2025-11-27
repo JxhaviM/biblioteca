@@ -1,0 +1,808 @@
+nohup: no se tendrá en cuenta la entrada
+
+> biblioteca-backend@1.0.0 start
+> node server.js
+
+[dotenv@17.2.0] injecting env (11) from .env (tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] })
+[dotenv@17.2.0] injecting env (0) from .env (tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`)
+✅ Archivos estáticos configurados: /uploads
+🔍 Cargando rutas del sistema...
+✅ authRoutes - OK
+✅ personRoutes - OK
+✅ attendanceRoutes - OK
+✅ spaceUsageRoutes - OK
+✅ bookRoutes - OK
+✅ userRoutes - OK
+✅ permissionRoutes - OK
+✅ systemRoutes - OK
+✅ loanRoutes - OK
+✅ reportsRoutes - OK
+✅ Todas las rutas core cargadas correctamente (PQR pendiente v1.1)
+(node:416889) [MONGOOSE] Warning: `errors` is a reserved schema pathname and may break some functionality. You are allowed to use it, but use at your own risk. To disable this warning pass `suppressReservedKeysWarning` as a schema option.
+(Use `node --trace-warnings ...` to show where the warning was created)
+🚀 Servidor corriendo en http://0.0.0.0:5000
+🌐 Accesible en la red local como: http://localhost:5000
+MongoDB conectado: localhost
+Agenda started
+✅ Agenda inicializada
+🔧 Inicializando permisos básicos del sistema...
+ℹ️ Permiso ya existe: statistics_read
+ℹ️ Permiso ya existe: statistics_manage
+ℹ️ Permiso ya existe: users_create
+ℹ️ Permiso ya existe: users_read
+ℹ️ Permiso ya existe: users_update
+ℹ️ Permiso ya existe: users_delete
+ℹ️ Permiso ya existe: users_manage
+ℹ️ Permiso ya existe: persons_create
+ℹ️ Permiso ya existe: persons_read
+ℹ️ Permiso ya existe: persons_update
+ℹ️ Permiso ya existe: persons_delete
+ℹ️ Permiso ya existe: persons_manage
+ℹ️ Permiso ya existe: books_create
+ℹ️ Permiso ya existe: books_read
+ℹ️ Permiso ya existe: books_update
+ℹ️ Permiso ya existe: books_delete
+ℹ️ Permiso ya existe: books_manage
+ℹ️ Permiso ya existe: loans_create
+ℹ️ Permiso ya existe: loans_read
+ℹ️ Permiso ya existe: loans_update
+ℹ️ Permiso ya existe: loans_delete
+ℹ️ Permiso ya existe: loans_manage
+ℹ️ Permiso ya existe: attendance_read
+ℹ️ Permiso ya existe: attendance_manage
+ℹ️ Permiso ya existe: spaces_read
+ℹ️ Permiso ya existe: spaces_manage
+ℹ️ Permiso ya existe: reports_read
+ℹ️ Permiso ya existe: reports_export
+ℹ️ Permiso ya existe: audit_read
+ℹ️ Permiso ya existe: system_manage
+ℹ️ Permiso ya existe: system_backup
+ℹ️ Permiso ya existe: permissions_read
+ℹ️ Permiso ya existe: permissions_manage
+✅ Permisos básicos inicializados
+🔧 Inicializando roles básicos del sistema...
+ℹ️ Rol ya existe: Super Administrador
+ℹ️ Rol ya existe: Administrador
+ℹ️ Rol ya existe: Usuario Estándar
+✅ Roles básicos inicializados
+🎉 Sistema de permisos completamente inicializado
+✅ Sistema de permisos inicializado
+ℹ️ SuperAdministradores activos encontrados (3). No se creará uno nuevo.
+---
+🔑 Datos del SuperAdministrador existente:
+   Username: oscar.moreno
+   Email: admin@biblioteca.com
+   Recuerda: La contraseña es la que está definida en tu variable de entorno SUPERADMIN_PASSWORD.
+---
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [32m200[0m 28.614 ms - 406659[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 16.845 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 15.118 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 15.027 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [32m200[0m 11.045 ms - 406659[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 14.168 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 15.594 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Modo desarrollo: Permitiendo cualquier origen
+🔍 Búsqueda recibida: { search: undefined, genre: undefined, isActive: 'true' }
+✅ Modo desarrollo: Permitiendo cualquier origen
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 21.127 ms - -[0m
+[0mGET /api/system/footer [36m304[0m 29.558 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+📊 Disponibilidad para ISBN 958-24-0827-8:
+  - Libros encontrados: 47
+  - Copias en Loan: 0
+  - Total final: 47
+  - Copias prestadas: 0
+  - Copias disponibles: 47
+📊 Disponibilidad para ISBN 958-600-035-4:
+  - Libros encontrados: 2
+  - Copias en Loan: 0
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+📊 Disponibilidad para ISBN 0301-0381-020-20:
+  - Libros encontrados: 2
+  - Copias en Loan: 8
+  - Total final: 8
+  - Copias prestadas: 0
+  - Copias disponibles: 8
+📊 Disponibilidad para ISBN 0-07-090921-0:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-04-7525-3:
+  - Libros encontrados: 35
+  - Copias en Loan: 0
+  - Total final: 35
+  - Copias prestadas: 0
+  - Copias disponibles: 35
+📊 Disponibilidad para ISBN 958-24-0824-3:
+  - Libros encontrados: 25
+  - Copias en Loan: 0
+  - Total final: 25
+  - Copias prestadas: 0
+  - Copias disponibles: 25
+✅ Modo desarrollo: Permitiendo cualquier origen
+📊 Disponibilidad para ISBN 958-04-7524-5:
+  - Libros encontrados: 36
+  - Copias en Loan: 0
+  - Total final: 36
+  - Copias prestadas: 0
+  - Copias disponibles: 36
+📊 Disponibilidad para ISBN 958-8147-37-9:
+  - Libros encontrados: 19
+  - Copias en Loan: 0
+  - Total final: 19
+  - Copias prestadas: 0
+  - Copias disponibles: 19
+📊 Disponibilidad para ISBN 958-8147-37-9:
+  - Libros encontrados: 27
+  - Copias en Loan: 0
+  - Total final: 27
+  - Copias prestadas: 0
+  - Copias disponibles: 27
+📊 Disponibilidad para ISBN 958-04-4692-X:
+  - Libros encontrados: 1
+  - Copias en Loan: 2
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+📊 Disponibilidad para ISBN 958-04-4688-1:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-04-4694-6:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 9258-04-4695-4:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 84-399-7934-7:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 84-8276-004-1:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 84-8276-002-5:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-24-0742-5:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-24-0826-X:
+  - Libros encontrados: 7
+  - Copias en Loan: 0
+  - Total final: 7
+  - Copias prestadas: 0
+  - Copias disponibles: 7
+📊 Disponibilidad para ISBN 958-04-4741-1:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-24-0825-1:
+  - Libros encontrados: 26
+  - Copias en Loan: 2
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+[0mGET /api/system/footer [36m304[0m 12.991 ms - -[0m
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 23.798 ms - -[0m
+[0mGET /api/books?page=1&limit=20&isActive=true [36m304[0m 58.509 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🔍 Búsqueda recibida: { search: undefined, genre: undefined, isActive: 'true' }
+📊 Disponibilidad para ISBN 0301-0381-020-20:
+  - Libros encontrados: 2
+  - Copias en Loan: 8
+  - Total final: 8
+  - Copias prestadas: 0
+  - Copias disponibles: 8
+📊 Disponibilidad para ISBN 958-24-0826-X:
+  - Libros encontrados: 7
+  - Copias en Loan: 0
+  - Total final: 7
+  - Copias prestadas: 0
+  - Copias disponibles: 7
+📊 Disponibilidad para ISBN 0-07-090921-0:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-24-0742-5:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-600-035-4:
+  - Libros encontrados: 2
+  - Copias en Loan: 0
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+📊 Disponibilidad para ISBN 9258-04-4695-4:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-04-4741-1:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 84-399-7934-7:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 84-8276-004-1:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+📊 Disponibilidad para ISBN 958-24-0824-3:
+  - Libros encontrados: 25
+  - Copias en Loan: 0
+  - Total final: 25
+  - Copias prestadas: 0
+  - Copias disponibles: 25
+📊 Disponibilidad para ISBN 958-24-0825-1:
+  - Libros encontrados: 26
+  - Copias en Loan: 2
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+📊 Disponibilidad para ISBN 958-04-7524-5:
+  - Libros encontrados: 36
+  - Copias en Loan: 0
+  - Total final: 36
+  - Copias prestadas: 0
+  - Copias disponibles: 36
+📊 Disponibilidad para ISBN 958-04-7525-3:
+  - Libros encontrados: 35
+  - Copias en Loan: 0
+  - Total final: 35
+  - Copias prestadas: 0
+  - Copias disponibles: 35
+📊 Disponibilidad para ISBN 958-8147-37-9:
+  - Libros encontrados: 19
+  - Copias en Loan: 0
+  - Total final: 19
+  - Copias prestadas: 0
+  - Copias disponibles: 19
+📊 Disponibilidad para ISBN 958-24-0827-8:
+  - Libros encontrados: 47
+  - Copias en Loan: 0
+  - Total final: 47
+  - Copias prestadas: 0
+  - Copias disponibles: 47
+📊 Disponibilidad para ISBN 958-8147-37-9:
+  - Libros encontrados: 27
+  - Copias en Loan: 0
+  - Total final: 27
+  - Copias prestadas: 0
+  - Copias disponibles: 27
+📊 Disponibilidad para ISBN 84-8276-002-5:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+✅ Modo desarrollo: Permitiendo cualquier origen
+📊 Disponibilidad para ISBN 958-04-4692-X:
+  - Libros encontrados: 1
+  - Copias en Loan: 2
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+[0mGET /uploads/covers/libro-unknown-1762036105007.jpg [36m304[0m 1.731 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+[0mGET /uploads/covers/libro-unknown-1762036120706.jpg [36m304[0m 0.566 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+📊 Disponibilidad para ISBN 958-04-4688-1:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+[0mGET /uploads/covers/libro-unknown-1762036143920.jpg [36m304[0m 0.634 ms - -[0m
+📊 Disponibilidad para ISBN 958-04-4694-6:
+  - Libros encontrados: 1
+  - Copias en Loan: 0
+  - Total final: 1
+  - Copias prestadas: 0
+  - Copias disponibles: 1
+✅ Modo desarrollo: Permitiendo cualquier origen
+[0mGET /uploads/covers/algebra-y-geometria-1-9582408251-1762110299334.jpg [36m304[0m 0.269 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+[0mGET /uploads/covers/libro-unknown-1762111082667.jpg [36m304[0m 0.161 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+[0mGET /api/books?page=1&limit=20&isActive=true [36m304[0m 39.251 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+[0mGET /uploads/covers/libro-unknown-1762258508983.jpg [36m304[0m 0.111 ms - -[0m
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 12.049 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 15.391 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 11.958 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🔍 Búsqueda recibida: { search: undefined, genre: 'cuentos', isActive: 'true' }
+🎭 Buscando género con patrones: [ 'cuentos', 'CUENTOS', 'cuentos', '"cuentos"', "'cuentos'" ]
+📊 Disponibilidad para ISBN 978-607400639-1:
+  - Libros encontrados: 1
+  - Copias en Loan: 5
+  - Total final: 5
+  - Copias prestadas: 0
+  - Copias disponibles: 5
+📊 Disponibilidad para ISBN 978-958-724-321-5:
+  - Libros encontrados: 1
+  - Copias en Loan: 4
+  - Total final: 4
+  - Copias prestadas: 0
+  - Copias disponibles: 4
+[0mGET /api/books?page=1&limit=20&genre=cuentos&isActive=true [32m200[0m 4.336 ms - 2225[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+[0mGET /uploads/covers/cuentos-para-pensar-9786074006-1762392516540.jpg [36m304[0m 0.246 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+[0mGET /uploads/covers/siete-lunas-para-don-quijote-9789587243-1762393621197.jpg [36m304[0m 0.103 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 11.865 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 12.348 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🔍 Búsqueda recibida: { search: undefined, genre: 'CIENCIA INTEGRADA', isActive: 'true' }
+🎭 Buscando género con patrones: [
+  'CIENCIA INTEGRADA',
+  'CIENCIA INTEGRADA',
+  'ciencia integrada',
+  '"CIENCIA INTEGRADA"',
+  "'CIENCIA INTEGRADA'"
+]
+📊 Disponibilidad para ISBN 958-02-0062-9:
+  - Libros encontrados: 2
+  - Copias en Loan: 0
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+[0mGET /api/books?page=1&limit=20&genre=CIENCIA+INTEGRADA&isActive=true [32m200[0m 3.601 ms - 697[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 12.513 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 13.513 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🔍 Búsqueda recibida: { search: undefined, genre: '"cuentos"', isActive: 'true' }
+🎭 Buscando género con patrones: [ '"cuentos"', '"CUENTOS"', '"cuentos"', '""cuentos""', `'"cuentos"'` ]
+📊 Disponibilidad para ISBN 978-958-724-321-5:
+  - Libros encontrados: 1
+  - Copias en Loan: 4
+  - Total final: 4
+  - Copias prestadas: 0
+  - Copias disponibles: 4
+[0mGET /api/books?page=1&limit=20&genre=%22cuentos%22&isActive=true [32m200[0m 4.325 ms - 1088[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 19.438 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 15.845 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🔍 Búsqueda recibida: { search: undefined, genre: 'CIENCIA INTEGRADA', isActive: 'true' }
+🎭 Buscando género con patrones: [
+  'CIENCIA INTEGRADA',
+  'CIENCIA INTEGRADA',
+  'ciencia integrada',
+  '"CIENCIA INTEGRADA"',
+  "'CIENCIA INTEGRADA'"
+]
+📊 Disponibilidad para ISBN 958-02-0062-9:
+  - Libros encontrados: 2
+  - Copias en Loan: 0
+  - Total final: 2
+  - Copias prestadas: 0
+  - Copias disponibles: 2
+[0mGET /api/books?page=1&limit=20&genre=CIENCIA+INTEGRADA&isActive=true [36m304[0m 3.951 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 11.350 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 12.117 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 15.789 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 17.484 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 14.895 ms - -[0m
+✅ Modo desarrollo: Permitiendo cualquier origen
+🎭 Obtener todos los libros para géneros...
+✅ Encontrados 2377 libros para géneros
+🎭 Géneros únicos encontrados: [
+  'CIENCIAS NATURALES',
+  'QUIMICA',
+  'CIENCIA INTEGRADA',
+  'FISICA',
+  'MATEMATICAS',
+  'TRIGONOMETRIA',
+  'CALCULO',
+  'ESPAÑOL',
+  'cuentos',
+  '"cuentos"',
+  '"cultura"'
+]
+[0mGET /api/books/genres/all?isActive=true [36m304[0m 22.947 ms - -[0m

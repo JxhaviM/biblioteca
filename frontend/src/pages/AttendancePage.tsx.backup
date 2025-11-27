@@ -1,0 +1,1396 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import type { User, Person } from '../api/auth';
+
+interface AttendancePageProps {
+  user: User | null;
+  person: Person | null;
+  setUser: Dispatch<SetStateAction<User | null>>;
+  setPerson: Dispatch<SetStateAction<Person | null>>;
+}
+
+interface Student {
+  _id: string;
+  name: string;
+  idNumber: string;
+  grado: string;
+  grupo: string;
+  attendance: {
+    _id?: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    hasCheckedIn: boolean;
+    hasCheckedOut: boolean;
+  };
+}
+
+type ViewMode = 'selection' | 'present' | 'allPresent' | 'activeNow';
+
+const formatTime = (date: string | Date) => {
+  return new Date(date).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+
+const getElapsedTime = (checkInTime: string) => {
+  const start = new Date(checkInTime).getTime();
+  const now = Date.now();
+  const elapsed = now - start;
+  const hours = Math.floor(elapsed / (1000 * 60 * 60));
+  const minutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((elapsed % (1000 * 60)) / 1000);
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const AttendancePage: React.FC<AttendancePageProps> = ({ user, person, setUser, setPerson }) => {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedGrado, setSelectedGrado] = useState('');
+  const [selectedGrupo, setSelectedGrupo] = useState('');
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [processingAction, setProcessingAction] = useState(false);
+  const [availableGrados, setAvailableGrados] = useState<string[]>([]);
+  const [availableGrupos, setAvailableGrupos] = useState<string[]>([]);
+  const [loadingFilters, setLoadingFilters] = useState(true);
+  const [gradoGrupoMap, setGradoGrupoMap] = useState<Record<string, string[]>>({});
+  const [viewMode, setViewMode] = useState<ViewMode>('activeNow');
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [allPresentStudents, setAllPresentStudents] = useState<Student[]>([]);
+  const [loadingAllPresent, setLoadingAllPresent] = useState(false);
+  const [activeNowStudents, setActiveNowStudents] = useState<Student[]>([]);
+  const [loadingActiveNow, setLoadingActiveNow] = useState<boolean>(false);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [advancedLoaded, setAdvancedLoaded] = useState<boolean>(false);
+  const [quickSearchTerm, setQuickSearchTerm] = useState<string>('');
+  const [quickSearchResults, setQuickSearchResults] = useState<any[]>([]);
+  const [loadingQuickSearch, setLoadingQuickSearch] = useState<boolean>(false);
+  const [searchActiveTerm, setSearchActiveTerm] = useState<string>('');
+  const [showNotification, setShowNotification] = useState<{type: 'success'|'error'|'info', message: string} | null>(null);
+
+  // Reloj en tiempo real
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Auto-refresh cada 30 segundos
+  useEffect(() => {
+    if (autoRefresh) {
+      const refreshTimer = setInterval(() => {
+        if (viewMode === 'present' && selectedGrado && selectedGrupo) {
+          fetchStudents();
+        } else if (viewMode === 'allPresent' && selectedGrado) {
+          fetchAllPresentByGrado();
+        } else if (viewMode === 'activeNow') {
+          fetchActiveNow();
+        }
+      }, 30000);
+      return () => clearInterval(refreshTimer);
+    }
+  }, [viewMode, autoRefresh, selectedGrado, selectedGrupo]);
+
+  // Ocultar notificación después de 5 segundos
+  useEffect(() => {
+    if (showNotification) {
+      const timer = setTimeout(() => setShowNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showNotification]);
+
+  // Cargar grados y grupos solo cuando se abre filtros avanzados
+  useEffect(() => {
+    if (showAdvanced && !advancedLoaded) {
+      fetchAvailableGradosGrupos();
+      setAdvancedLoaded(true);
+    }
+  }, [showAdvanced, advancedLoaded]);
+
+  // Cargar activos al entrar a la página por defecto
+  useEffect(() => {
+    fetchActiveNow();
+  }, []);
+
+  useEffect(() => {
+    if (selectedGrado && selectedGrupo) {
+      fetchStudents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedGrado, selectedGrupo]);
+
+  // Cuando cambia el grado, recalcular los grupos disponibles y resetear el grupo seleccionado
+  useEffect(() => {
+    if (!selectedGrado) {
+      setAvailableGrupos([]);
+      setSelectedGrupo('');
+      return;
+    }
+    const gruposForGrado = gradoGrupoMap[selectedGrado] || [];
+    setAvailableGrupos(gruposForGrado);
+    // Si el grupo actual no pertenece al grado seleccionado, resetear
+    if (!gruposForGrado.includes(selectedGrupo)) {
+      setSelectedGrupo('');
+    }
+  }, [selectedGrado, gradoGrupoMap]);
+
+  const fetchAvailableGradosGrupos = async () => {
+    setLoadingFilters(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/persons?tipoPersona=Estudiante&limit=1000', {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success && data.data) {
+        // Extraer grados únicos
+        const gradosSet = new Set<string>();
+        const map: Record<string, Set<string>> = {};
+        
+        data.data.forEach((person: any) => {
+          const g: string | undefined = person.grado;
+          const grp: string | undefined = person.grupo;
+          if (!g) return;
+          gradosSet.add(g);
+          if (!map[g]) map[g] = new Set<string>();
+          if (grp) map[g].add(grp);
+        });
+        
+        // Ordenar grados numéricamente
+        const gradosArray = Array.from(gradosSet).sort((a, b) => {
+          const numA = parseInt(a);
+          const numB = parseInt(b);
+          return numA - numB;
+        });
+        
+        setAvailableGrados(gradosArray);
+        // Construir mapa final grado -> grupos ordenados alfabéticamente
+        const finalizedMap: Record<string, string[]> = {};
+        for (const g of Object.keys(map)) {
+          finalizedMap[g] = Array.from(map[g]).sort();
+        }
+        setGradoGrupoMap(finalizedMap);
+        // Si ya hay un grado seleccionado, actualizar sus grupos disponibles
+        if (selectedGrado) {
+          setAvailableGrupos(finalizedMap[selectedGrado] || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching grados/grupos:', error);
+      setShowNotification({ type: 'error', message: '❌ Error al cargar grados y grupos' });
+    } finally {
+      setLoadingFilters(false);
+    }
+  };
+
+  // Búsqueda rápida de estudiantes (sin filtros) para marcar entrada
+  const handleQuickSearch = async (term: string) => {
+    const q = term.trim();
+    if (!q) {
+      setQuickSearchResults([]);
+      return;
+    }
+    try {
+      setLoadingQuickSearch(true);
+      setSearchActiveTerm(q);
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`http://localhost:5000/api/persons/search?query=${encodeURIComponent(q)}&search=${encodeURIComponent(q)}&tipoPersona=Estudiante&limit=20&_t=${Date.now()}` , {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      if (!resp.ok) {
+        if (resp.status === 401) {
+          setShowNotification({ type: 'error', message: '🔒 Debes iniciar sesión para buscar estudiantes' });
+        } else {
+          setShowNotification({ type: 'error', message: `Error de búsqueda (${resp.status})` });
+        }
+        setQuickSearchResults([]);
+        return;
+      }
+      const data = await resp.json();
+      if (data.success) {
+        setQuickSearchResults(Array.isArray(data.data) ? data.data.slice(0, 10) : []);
+      } else {
+        setQuickSearchResults([]);
+        if (data.message) setShowNotification({ type: 'error', message: data.message });
+      }
+    } catch (e) {
+      console.error('Quick search error:', e);
+      setQuickSearchResults([]);
+      setShowNotification({ type: 'error', message: '❌ Error realizando la búsqueda' });
+    } finally {
+      setLoadingQuickSearch(false);
+    }
+  };
+
+  // Disparar búsqueda en vivo con debounce
+  useEffect(() => {
+    const term = quickSearchTerm;
+    if (!term || term.trim().length < 1) {
+      setQuickSearchResults([]);
+      setLoadingQuickSearch(false);
+      return;
+    }
+    setLoadingQuickSearch(true);
+    const t = setTimeout(() => {
+      handleQuickSearch(term);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [quickSearchTerm]);
+
+  const handleQuickCheckIn = async (personId: string, displayName: string) => {
+    try {
+      setProcessingAction(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/attendance/bulk-checkin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify({ personIds: [personId], notes: `Entrada rápida` })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setShowNotification({ type: 'success', message: `✅ Entrada registrada para ${displayName}` });
+        setQuickSearchTerm('');
+        setQuickSearchResults([]);
+        // refrescar vistas según corresponda
+        if (viewMode === 'activeNow') await fetchActiveNow();
+        if (selectedGrado && selectedGrupo) await fetchStudents();
+      } else {
+        setShowNotification({ type: 'error', message: data.message || 'Error al registrar entrada' });
+      }
+    } catch (e) {
+      console.error('Quick check-in error:', e);
+      setShowNotification({ type: 'error', message: 'No se pudo registrar la entrada' });
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const fetchStudents = useCallback(async () => {
+    if (!selectedGrado || !selectedGrupo) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `http://localhost:5000/api/attendance/group/${selectedGrado}/${selectedGrupo}?date=${selectedDate}&_t=${Date.now()}`,
+        {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
+      );
+      
+      const data = await response.json();
+      console.log('📊 Datos recibidos del backend:', data);
+      
+      if (data.success) {
+        setStudents(data.data || []);
+        // Si estamos en vista de selección, auto-seleccionar estudiantes con asistencia
+        if (viewMode === 'selection') {
+          const withAttendance = new Set<string>(
+            data.data.filter((s: Student) => s.attendance.hasCheckedIn).map((s: Student) => s._id)
+          );
+          setSelectedStudents(withAttendance);
+        }
+      } else {
+        setShowNotification({ type: 'error', message: data.message || 'Error al cargar estudiantes' });
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      setShowNotification({ type: 'error', message: 'No se pudo conectar con el servidor. Verifica que esté corriendo.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedGrado, selectedGrupo, selectedDate, viewMode]);
+
+  const fetchAllPresentByGrado = useCallback(async () => {
+    if (!selectedGrado) return;
+    
+    setLoadingAllPresent(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `http://localhost:5000/api/attendance/present-by-grade/${selectedGrado}?date=${selectedDate}&_t=${Date.now()}`,
+        {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
+      );
+      
+      const data = await response.json();
+      console.log('📊 Estudiantes presentes del grado:', data);
+      
+      if (data.success) {
+        setAllPresentStudents(data.data || []);
+      } else {
+        setShowNotification({ type: 'error', message: data.message || 'Error al cargar estudiantes presentes' });
+      }
+    } catch (error) {
+      console.error('Error fetching present students:', error);
+      setShowNotification({ type: 'error', message: 'No se pudo obtener la lista de presentes' });
+    } finally {
+      setLoadingAllPresent(false);
+    }
+  }, [selectedGrado, selectedDate]);
+
+  // Obtener asistencias activas globales (sin filtros)
+  const fetchActiveNow = useCallback(async () => {
+    setLoadingActiveNow(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `http://localhost:5000/api/attendance/active?_t=${Date.now()}`,
+        {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
+      );
+      const data = await response.json();
+      if (data.success) {
+        // Backend getActiveAttendances devuelve: { id, persona: { id, nombre, doc, grado, grupo }, checkInTime, ... }
+        const raw: any[] = Array.isArray(data.data) ? data.data : [];
+        const mapped: Student[] = raw
+          .map((a: any) => {
+            const persona = a.persona || null;
+            const personId = persona && (persona.id || persona._id);
+            if (!personId) return null;
+            return {
+              _id: String(personId),
+              name: (persona && (persona.nombre || persona.nombreCompleto)) || 'Estudiante',
+              idNumber: (persona && persona.doc) || '',
+              grado: (persona && persona.grado) || '',
+              grupo: (persona && persona.grupo) || '',
+              attendance: {
+                _id: a.id || a._id,
+                checkInTime: a.checkInTime,
+                checkOutTime: a.checkOutTime, // normalmente no viene para activas
+                hasCheckedIn: true,
+                hasCheckedOut: !!a.checkOutTime
+              }
+            } as Student;
+          })
+          .filter((s: Student | null) => s !== null) as Student[];
+        setActiveNowStudents(mapped);
+      } else {
+        setActiveNowStudents([]);
+      }
+    } catch (error) {
+      console.error('Error fetching active attendances:', error);
+      setActiveNowStudents([]);
+    } finally {
+      setLoadingActiveNow(false);
+    }
+  }, []);
+
+  const toggleStudent = (studentId: string) => {
+    const newSelected = new Set(selectedStudents);
+    if (newSelected.has(studentId)) {
+      newSelected.delete(studentId);
+    } else {
+      newSelected.add(studentId);
+    }
+    setSelectedStudents(newSelected);
+  };
+
+  const toggleAll = () => {
+    if (selectedStudents.size === students.length) {
+      setSelectedStudents(new Set());
+    } else {
+      setSelectedStudents(new Set(students.map(s => s._id)));
+    }
+  };
+
+  const handleBulkCheckIn = async () => {
+    if (selectedStudents.size === 0) {
+      setShowNotification({ type: 'info', message: '⚠️ Selecciona al menos un estudiante' });
+      return;
+    }
+
+    setProcessingAction(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/attendance/bulk-checkin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        body: JSON.stringify({
+          personIds: Array.from(selectedStudents),
+          notes: `Asistencia ${selectedGrado}°${selectedGrupo} - ${selectedDate}`
+        })
+      });
+
+      const data = await response.json();
+      console.log('📋 Resultado de marcar asistencia:', data);
+      
+      if (data.success) {
+        const result = data.data;
+        let message = `✅ Asistencia registrada exitosamente\n`;
+        message += `• ${result.success.length} estudiantes marcados\n`;
+        if (result.skipped.length > 0) {
+          message += `• ${result.skipped.length} omitidos (ya tenían entrada)\n`;
+        }
+        if (result.failed.length > 0) {
+          message += `• ${result.failed.length} fallidos\n`;
+        }
+        setShowNotification({ type: 'success', message });
+        
+        // Esperar un momento antes de recargar para asegurar que la BD se actualizó
+        setTimeout(async () => {
+          await fetchStudents(); // Recargar lista
+          // Cambiar a vista de presentes automáticamente
+          setViewMode('present');
+        }, 500);
+      } else {
+        setShowNotification({ type: 'error', message: data.message || 'Error al marcar asistencia' });
+      }
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      setShowNotification({ type: 'error', message: '❌ Error al marcar asistencia' });
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleSingleCheckOut = async (studentId: string) => {
+    if (!studentId) {
+      setShowNotification({ type: 'error', message: 'No se pudo identificar el estudiante' });
+      return;
+    }
+    setProcessingAction(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/attendance/bulk-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        body: JSON.stringify({
+          personIds: [studentId],
+          notes: `Salida individual ${selectedGrado}°${selectedGrupo}`
+        })
+      });
+
+      const data = await response.json();
+      console.log('🚪 Resultado de marcar salida:', data);
+      
+      if (data.success) {
+        setShowNotification({ type: 'success', message: '✅ Salida marcada correctamente' });
+        if (viewMode === 'activeNow') {
+          await fetchActiveNow();
+        } else {
+          await fetchStudents();
+        }
+      } else {
+        setShowNotification({ type: 'error', message: data.message || 'Error al marcar salida' });
+      }
+    } catch (error) {
+      console.error('Error marking exit:', error);
+      setShowNotification({ type: 'error', message: '❌ Error al marcar salida' });
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleBulkCheckOut = async () => {
+    const sourceList = viewMode === 'activeNow' ? activeNowStudents : students;
+    const studentsWithCheckIn = sourceList.filter(s => 
+      selectedStudents.has(s._id) && s.attendance.hasCheckedIn && !s.attendance.hasCheckedOut
+    );
+
+    if (studentsWithCheckIn.length === 0) {
+      setShowNotification({ type: 'info', message: '⚠️ No hay estudiantes con entrada registrada para marcar salida' });
+      return;
+    }
+
+    setProcessingAction(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/attendance/bulk-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        body: JSON.stringify({
+          personIds: studentsWithCheckIn.map(s => s._id),
+          notes: `Salida ${selectedGrado}°${selectedGrupo}`
+        })
+      });
+
+      const data = await response.json();
+      console.log('🚪 Resultado de salida masiva:', data);
+      
+      if (data.success) {
+        const result = data.data;
+        let message = `✅ Salida registrada\n`;
+        message += `• ${result.success.length} estudiantes con salida\n`;
+        if (result.notFound.length > 0) {
+          message += `• ${result.notFound.length} sin entrada registrada\n`;
+        }
+        setShowNotification({ type: 'success', message });
+        if (viewMode === 'activeNow') {
+          await fetchActiveNow();
+        } else {
+          await fetchStudents();
+        }
+      } else {
+        setShowNotification({ type: 'error', message: data.message || 'Error al marcar salida' });
+      }
+    } catch (error) {
+      console.error('Error marking exit:', error);
+      setShowNotification({ type: 'error', message: '❌ Error al marcar salida' });
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const stats = {
+    total: students.length,
+    present: students.filter(s => s.attendance.hasCheckedIn && !s.attendance.hasCheckedOut).length,
+    checkedOut: students.filter(s => s.attendance.hasCheckedOut).length,
+    absent: students.filter(s => !s.attendance.hasCheckedIn).length
+  };
+
+  const presentStudents = viewMode === 'allPresent' ? allPresentStudents : students.filter(s => s.attendance.hasCheckedIn && !s.attendance.hasCheckedOut);
+  
+  // Cuando cambiamos a vista de todos los presentes, cargar los datos
+  useEffect(() => {
+    if (viewMode === 'allPresent' && selectedGrado) {
+      fetchAllPresentByGrado();
+    }
+  }, [viewMode, selectedGrado, fetchAllPresentByGrado]);
+  const togglePresentStudent = (studentId: string) => {
+    const newSelected = new Set(selectedStudents);
+    if (newSelected.has(studentId)) {
+      newSelected.delete(studentId);
+    } else {
+      newSelected.add(studentId);
+    }
+    setSelectedStudents(newSelected);
+  };
+
+  const toggleAllPresent = () => {
+    if (selectedStudents.size === presentStudents.length) {
+      setSelectedStudents(new Set());
+    } else {
+      setSelectedStudents(new Set(presentStudents.map(s => s._id)));
+    }
+  };
+
+  return (
+    <div>
+      
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">📋 Asistencia</h1>
+          <p className="text-gray-600 mt-1">Registra asistencia por grupo</p>
+        </div>
+
+        {/* Mensaje si no hay datos */}
+        {!loadingFilters && availableGrados.length === 0 && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <span className="text-2xl">⚠️</span>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  <strong>No hay estudiantes registrados.</strong> Debes registrar estudiantes con grado y grupo asignados para poder marcar asistencia.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Búsqueda rápida para marcar entrada */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex flex-col md:flex-row gap-3 items-stretch">
+            <input
+              type="text"
+              value={quickSearchTerm}
+              onChange={(e) => setQuickSearchTerm(e.target.value)}
+              placeholder="Buscar estudiante por nombre o documento..."
+              className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {loadingQuickSearch && quickSearchTerm.trim().length >= 2 && (
+            <div className="text-sm text-gray-500 mt-2">⏳ Buscando "{searchActiveTerm || quickSearchTerm}"...</div>
+          )}
+          {quickSearchResults.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estudiante</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Documento</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Grado</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {quickSearchResults.map((p: any) => (
+                    <tr
+                      key={p._id}
+                      onClick={() => handleQuickCheckIn(p._id, p.nombreCompleto || p.name || 'Estudiante')}
+                      className="cursor-pointer hover:bg-green-50"
+                      title="Clic para marcar entrada"
+                    >
+                      <td className="px-4 py-2">{p.nombreCompleto || p.name || 'Estudiante'}</td>
+                      <td className="px-4 py-2">{p.doc || ''}</td>
+                      <td className="px-4 py-2">{p.grado || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Filtros (colapsados por defecto) */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">Filtros avanzados</h3>
+            <button
+              onClick={() => setShowAdvanced(prev => !prev)}
+              className="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+            >
+              {showAdvanced ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
+          {showAdvanced && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📅 Fecha
+              </label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📚 Grado
+              </label>
+              <select
+                value={selectedGrado}
+                onChange={(e) => {
+                  setSelectedGrado(e.target.value);
+                  setSelectedStudents(new Set());
+                  setViewMode('selection');
+                }}
+                disabled={loadingFilters}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              >
+                <option value="">{loadingFilters ? 'Cargando...' : 'Seleccionar...'}</option>
+                {availableGrados.map((g: string) => (
+                  <option key={g} value={g}>{g}°</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                🎓 Grupo
+              </label>
+              <select
+                value={selectedGrupo}
+                onChange={(e) => {
+                  setSelectedGrupo(e.target.value);
+                  setSelectedStudents(new Set());
+                  setViewMode('selection');
+                }}
+                disabled={loadingFilters || !selectedGrado}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              >
+                <option value="">{loadingFilters ? 'Cargando...' : 'Seleccionar...'}</option>
+                {availableGrupos.map((g: string) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={fetchStudents}
+                disabled={
+                  !selectedGrado ||
+                  !selectedGrupo ||
+                  loading ||
+                  !availableGrupos.includes(selectedGrupo)
+                }
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {loading ? '⏳ Cargando...' : '🔍 Buscar'}
+              </button>
+            </div>
+          </div>
+          )}
+        </div>
+
+        {/* Notificación personalizada */}
+        {showNotification && (
+          <div className={`mb-6 p-4 rounded-lg border-l-4 ${
+            showNotification.type === 'success' ? 'bg-green-50 border-green-500' :
+            showNotification.type === 'error' ? 'bg-red-50 border-red-500' :
+            'bg-blue-50 border-blue-500'
+          }`}>
+            <div className="flex items-start">
+              <span className="text-2xl mr-3">
+                {showNotification.type === 'success' ? '✅' : showNotification.type === 'error' ? '❌' : 'ℹ️'}
+              </span>
+              <div className="flex-1">
+                <p className={`font-medium whitespace-pre-line ${
+                  showNotification.type === 'success' ? 'text-green-800' :
+                  showNotification.type === 'error' ? 'text-red-800' :
+                  'text-blue-800'
+                }`}>{showNotification.message}</p>
+              </div>
+              <button onClick={() => setShowNotification(null)} className="ml-4 text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Botones de cambio de vista (alineación consistente) */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <button
+            onClick={() => {
+              setViewMode('activeNow');
+              setSelectedStudents(new Set());
+              fetchActiveNow();
+            }}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm min-w-[180px] max-w-[220px] truncate ${
+              viewMode === 'activeNow'
+                ? 'bg-emerald-600 text-white shadow'
+                : 'bg-white text-gray-700 border border-gray-200 hover:border-emerald-400'
+            }`}
+            title={`Activos ahora (${activeNowStudents.length})`}
+          >
+            🟢 Activos ahora ({activeNowStudents.length})
+          </button>
+
+          <button
+            onClick={() => {
+              setViewMode('selection');
+              setSelectedStudents(new Set());
+            }}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm min-w-[180px] max-w-[220px] truncate ${
+              viewMode === 'selection'
+                ? 'bg-blue-600 text-white shadow'
+                : 'bg-white text-gray-700 border border-gray-200 hover:border-blue-400'
+            }`}
+            title="Marcar Asistencia"
+          >
+            📋 Marcar Asistencia
+          </button>
+
+          <button
+            onClick={() => {
+              setViewMode('present');
+              setSelectedStudents(new Set());
+            }}
+            disabled={stats.present === 0}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm min-w-[180px] max-w-[220px] truncate ${
+              viewMode === 'present'
+                ? 'bg-green-600 text-white shadow'
+                : 'bg-white text-gray-700 border border-gray-200 hover:border-green-400'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={`Presentes Grupo (${stats.present})`}
+          >
+            ✅ Presentes Grupo ({stats.present})
+          </button>
+
+          <button
+            onClick={() => {
+              setViewMode('allPresent');
+              setSelectedStudents(new Set());
+            }}
+            disabled={!selectedGrado}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm min-w-[180px] max-w-[220px] truncate ${
+              viewMode === 'allPresent'
+                ? 'bg-purple-600 text-white shadow'
+                : 'bg-white text-gray-700 border border-gray-200 hover:border-purple-400'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={selectedGrado ? `Todos del Grado ${selectedGrado}°` : 'Todos del Grado'}
+          >
+            👥 {selectedGrado ? `Todos del Grado ${selectedGrado}°` : 'Todos del Grado'}
+          </button>
+        </div>
+
+        {/* Estadísticas */}
+        {students.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 text-sm">Total</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                </div>
+                <div className="bg-gray-100 p-3 rounded-full">
+                  <span className="text-2xl">👥</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 text-sm">Presentes</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.present}</p>
+                </div>
+                <div className="bg-green-100 p-3 rounded-full">
+                  <span className="text-2xl">✅</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 text-sm">Salidas</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.checkedOut}</p>
+                </div>
+                <div className="bg-blue-100 p-3 rounded-full">
+                  <span className="text-2xl">🚪</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 text-sm">Ausentes</p>
+                  <p className="text-2xl font-bold text-red-600">{stats.absent}</p>
+                </div>
+                <div className="bg-red-100 p-3 rounded-full">
+                  <span className="text-2xl">❌</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Vista de selección para marcar entrada */}
+        {viewMode === 'selection' && (
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            {/* Acciones masivas */}
+            <div className="bg-gray-50 px-6 py-4 border-b flex flex-wrap items-center gap-3">
+              <button
+                onClick={toggleAll}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                {selectedStudents.size === students.length ? '❎ Desmarcar Todos' : '☑️ Marcar Todos'}
+              </button>
+
+              <button
+                onClick={handleBulkCheckIn}
+                disabled={processingAction || selectedStudents.size === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
+              >
+                ✅ Marcar Entrada ({selectedStudents.size})
+              </button>
+
+              <button
+                onClick={handleBulkCheckOut}
+                disabled={processingAction || selectedStudents.size === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                🚪 Marcar Salida ({selectedStudents.size})
+              </button>
+
+              <span className="ml-auto text-sm text-gray-600">
+                {selectedStudents.size} de {students.length} seleccionados
+              </span>
+            </div>
+
+            {/* Tabla de estudiantes */}
+            <div className="overflow-x-auto" style={{ maxHeight: '60vh' }}>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-12">✓</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estudiante</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32">ID</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-32">Entrada</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-32">Salida</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {students.map((student) => (
+                    <tr key={student._id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.has(student._id)}
+                          onChange={() => toggleStudent(student._id)}
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-medium text-gray-900">{student.name}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-gray-600 font-mono">{student.idNumber}</p>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {student.attendance.hasCheckedIn ? (
+                          <span className="text-xs text-green-600">
+                            ✅ {new Date(student.attendance.checkInTime!).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {student.attendance.hasCheckedOut ? (
+                          <span className="text-xs text-blue-600">
+                            🚪 {new Date(student.attendance.checkOutTime!).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        ) : student.attendance.hasCheckedIn ? (
+                          <span className="text-xs text-gray-400">Pendiente</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {student.attendance.hasCheckedOut ? (
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                            Completo
+                          </span>
+                        ) : student.attendance.hasCheckedIn ? (
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            Presente
+                          </span>
+                        ) : (
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                            Ausente
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {selectedGrado && selectedGrupo && students.length === 0 && (
+                <div className="p-6 text-center text-gray-500">No hay estudiantes cargados para este grupo o aún no se han sincronizado.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Vista de activos ahora (global, sin filtros) */}
+        {viewMode === 'activeNow' && (
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-emerald-600 px-4 py-3 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">🟢 Asistencias activas ahora</h2>
+                  <p className="text-emerald-100 mt-1">Total: {activeNowStudents.length}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-mono font-semibold">
+                    {currentTime.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
+                  <div className="text-emerald-100 text-xs">
+                    {currentTime.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 border-b flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                value={searchActiveTerm}
+                onChange={(e) => setSearchActiveTerm(e.target.value)}
+                placeholder="Buscar por nombre o documento..."
+                className="flex-1 min-w-[240px] px-3 py-2 border rounded"
+              />
+              <button
+                onClick={() => {
+                  if (selectedStudents.size === activeNowStudents.length) setSelectedStudents(new Set());
+                  else setSelectedStudents(new Set(activeNowStudents.map(s => s._id)));
+                }}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                {selectedStudents.size === activeNowStudents.length ? '❎ Desmarcar Todos' : '☑️ Seleccionar Todos'}
+              </button>
+
+              <button
+                onClick={handleBulkCheckOut}
+                disabled={processingAction || selectedStudents.size === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                🚪 Marcar Salida Masiva ({selectedStudents.size})
+              </button>
+
+              <button
+                onClick={() => fetchActiveNow()}
+                disabled={loadingActiveNow}
+                className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:bg-gray-400"
+              >
+                {loadingActiveNow ? '⏳ Actualizando...' : '🔄 Actualizar'}
+              </button>
+
+              <span className="ml-auto text-sm text-gray-600">
+                {selectedStudents.size} seleccionados de {activeNowStudents.length}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto" style={{ maxHeight: '60vh' }}>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-12">✓</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estudiante</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Grado</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Grupo</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-32">Entrada</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-24">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {activeNowStudents
+                    .filter(s => {
+                      const q = searchActiveTerm.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        (s.name || '').toLowerCase().includes(q) ||
+                        (s.idNumber || '').toLowerCase().includes(q)
+                      );
+                    })
+                    .map((student) => (
+                    <tr key={student._id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.has(student._id)}
+                          onChange={() => togglePresentStudent(student._id)}
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-medium text-gray-900">{student.name}</p>
+                        <p className="text-xs text-gray-500 font-mono">{student.idNumber}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{student.grado || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{student.grupo || '-'}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-xs text-green-600">
+                          ✅ {student.attendance.checkInTime ? new Date(student.attendance.checkInTime).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleSingleCheckOut(student._id)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                        >
+                          Marcar salida
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Vista de estudiantes presentes con reloj (del grupo) */}
+        {students.length > 0 && viewMode === 'present' && (
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            {/* Header con reloj */}
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">👥 Estudiantes Presentes - Grupo</h2>
+                  <p className="text-green-100 mt-1">{selectedGrado}° {selectedGrupo} - {presentStudents.length} presentes</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-4xl font-mono font-bold">
+                    {currentTime.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
+                  <div className="text-green-100 text-sm">
+                    {currentTime.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Controles */}
+            <div className="bg-gray-50 px-6 py-4 border-b flex flex-wrap items-center gap-3">
+              <button
+                onClick={toggleAllPresent}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                {selectedStudents.size === presentStudents.length ? '❎ Desmarcar Todos' : '☑️ Seleccionar Todos'}
+              </button>
+
+              <button
+                onClick={handleBulkCheckOut}
+                disabled={processingAction || selectedStudents.size === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                🚪 Marcar Salida Masiva ({selectedStudents.size})
+              </button>
+
+              <button
+                onClick={() => fetchStudents()}
+                disabled={loading}
+                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400"
+              >
+                {loading ? '⏳' : '🔄'} Actualizar
+              </button>
+
+              <label className="ml-auto flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                Auto-actualizar (30s)
+              </label>
+            </div>
+
+            {/* Lista de presentes con tiempo */}
+            <div className="divide-y divide-gray-200" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {presentStudents.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="text-6xl mb-4">👀</div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay estudiantes presentes</h3>
+                  <p className="text-gray-500">Marca asistencia primero para ver estudiantes aquí</p>
+                </div>
+              ) : (
+                presentStudents.map((student) => (
+                  <div key={student._id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.has(student._id)}
+                        onChange={() => togglePresentStudent(student._id)}
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                      />
+
+                      {/* Información del estudiante */}
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-lg font-semibold text-gray-900">{student.name}</p>
+                          <p className="text-sm text-gray-500">{student.idNumber}</p>
+                        </div>
+
+                        <div className="text-center">
+                          <p className="text-xs text-gray-500 mb-1">Grupo</p>
+                          <p className="text-sm font-medium text-gray-700">{student.grupo}</p>
+                        </div>
+
+                        <div className="text-center">
+                          <p className="text-xs text-gray-500 mb-1">Hora de entrada</p>
+                          <p className="text-sm font-medium text-green-600">
+                            {formatTime(student.attendance.checkInTime!)}
+                          </p>
+                        </div>
+
+                        <div className="text-center">
+                          <p className="text-xs text-gray-500 mb-1">Tiempo transcurrido</p>
+                          <p className="text-lg font-mono font-bold text-blue-600">
+                            {getElapsedTime(student.attendance.checkInTime!)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Botón de salida individual */}
+                      <button
+                        onClick={() => handleSingleCheckOut(student._id)}
+                        disabled={processingAction}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors font-medium whitespace-nowrap"
+                      >
+                        🚪 Marcar Salida
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Vista de TODOS los presentes del GRADO */}
+        {viewMode === 'allPresent' && (
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            {/* Header con reloj */}
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-6 py-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">👥 Todos los Presentes del Grado</h2>
+                  <p className="text-purple-100 mt-1">{selectedGrado}° (Todos los grupos) - {loadingAllPresent ? '...' : presentStudents.length} presentes</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-4xl font-mono font-bold">
+                    {currentTime.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
+                  <div className="text-purple-100 text-sm">
+                    {currentTime.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Controles */}
+            <div className="bg-gray-50 px-6 py-4 border-b flex flex-wrap items-center gap-3">
+              <button
+                onClick={toggleAllPresent}
+                disabled={loadingAllPresent}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-400"
+              >
+                {selectedStudents.size === presentStudents.length ? '❎ Desmarcar Todos' : '☑️ Seleccionar Todos'}
+              </button>
+
+              <button
+                onClick={handleBulkCheckOut}
+                disabled={processingAction || selectedStudents.size === 0 || loadingAllPresent}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                🚪 Marcar Salida Masiva ({selectedStudents.size})
+              </button>
+
+              <button
+                onClick={() => fetchAllPresentByGrado()}
+                disabled={loadingAllPresent}
+                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400"
+              >
+                {loadingAllPresent ? '⏳ Cargando...' : '🔄 Actualizar'}
+              </button>
+
+              <label className="ml-auto flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                Auto-actualizar (30s)
+              </label>
+            </div>
+
+            {/* Lista de presentes con tiempo */}
+            <div className="divide-y divide-gray-200" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {loadingAllPresent ? (
+                <div className="p-12 text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mx-auto mb-4"></div>
+                  <h3 className="text-xl font-semibold text-gray-700">Cargando estudiantes presentes...</h3>
+                </div>
+              ) : presentStudents.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="text-6xl mb-4">👀</div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay estudiantes presentes</h3>
+                  <p className="text-gray-500">Marca asistencia en los grupos para ver estudiantes aquí</p>
+                </div>
+              ) : (
+                presentStudents.map((student) => (
+                  <div key={student._id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.has(student._id)}
+                        onChange={() => togglePresentStudent(student._id)}
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                      />
+
+                      {/* Información del estudiante */}
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-lg font-semibold text-gray-900">{student.name}</p>
+                          <p className="text-sm text-gray-500">{student.idNumber}</p>
+                        </div>
+
+                        <div className="text-center">
+                          <p className="text-xs text-gray-500 mb-1">Grupo</p>
+                          <p className="text-sm font-medium text-purple-600">{student.grupo}</p>
+                        </div>
+
+                        <div className="text-center">
+                          <p className="text-xs text-gray-500 mb-1">Hora de entrada</p>
+                          <p className="text-sm font-medium text-green-600">
+                            {formatTime(student.attendance.checkInTime!)}
+                          </p>
+                        </div>
+
+                        <div className="text-center">
+                          <p className="text-xs text-gray-500 mb-1">Tiempo transcurrido</p>
+                          <p className="text-lg font-mono font-bold text-blue-600">
+                            {getElapsedTime(student.attendance.checkInTime!)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Botón de salida individual */}
+                      <button
+                        onClick={() => handleSingleCheckOut(student._id)}
+                        disabled={processingAction}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors font-medium whitespace-nowrap"
+                      >
+                        🚪 Marcar Salida
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Mensaje cuando no hay grupo seleccionado */}
+        {!selectedGrado || !selectedGrupo ? (
+          <div className="bg-white rounded-lg shadow-md p-12 text-center">
+            <div className="text-6xl mb-4">📋</div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">Selecciona un grupo</h3>
+            <p className="text-gray-500">Elige el grado y grupo para ver la lista de estudiantes</p>
+          </div>
+        ) : students.length === 0 && !loading ? (
+          <div className="bg-white rounded-lg shadow-md p-12 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay estudiantes</h3>
+            <p className="text-gray-500">No se encontraron estudiantes en este grupo</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+export default AttendancePage;

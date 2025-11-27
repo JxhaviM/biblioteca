@@ -1,0 +1,624 @@
+import { useState, useEffect } from 'react';
+import LoginModal from '../components/LoginModal';
+import { booksApi, type Book, type Loan } from '../api';
+import type { User, Person } from '../api/auth';
+import { useNotification } from '../components/NotificationContainer';
+
+// Componente para modal de detalles de libro
+const BookDetailModal = ({ book, isOpen, onClose, isAuthenticated, onRequestLoan }: { 
+  book: Book | null; 
+  isOpen: boolean; 
+  onClose: () => void;
+  isAuthenticated: boolean;
+  onRequestLoan: (bookId: string) => void;
+}) => {
+  if (!isOpen || !book) return null;
+
+  const isAvailable = book.availability?.isAvailable || false;
+  const totalCopies = book.availability?.totalCopies || 0;
+  const availableCopies = book.availability?.availableCopies || 0;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-3xl font-bold text-gray-900">{book.title}</h2>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">
+              ×
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <img
+                src={book.coverImage || `https://placehold.co/400x600/10B981/FFFFFF?text=${encodeURIComponent(book.title)}`}
+                alt={book.title}
+                className="w-full rounded-lg shadow-lg"
+              />
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600">Autor</p>
+                <p className="text-lg font-semibold text-gray-900">{book.author}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-600">Género</p>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(Array.isArray(book.genre) ? book.genre : [book.genre]).map((g, idx) => (
+                    <span key={idx} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">ISBN</p>
+                  <p className="text-md font-medium text-gray-900">{book.isbn}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Año</p>
+                  <p className="text-md font-medium text-gray-900">{book.publishedYear}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-600">Ubicación</p>
+                <p className="text-md font-medium text-gray-900">{book.location || 'No especificada'}</p>
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-600">Disponibilidad</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {isAvailable ? '✓ Disponible' : '✗ No Disponible'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  {availableCopies} de {totalCopies} copias disponibles
+                </p>
+              </div>
+
+              {book.description && (
+                <div>
+                  <p className="text-sm text-gray-600">Descripción</p>
+                  <p className="text-sm text-gray-700 mt-1">{book.description}</p>
+                </div>
+              )}
+
+              {isAuthenticated && isAvailable && (
+                <button
+                  onClick={() => onRequestLoan(book._id)}
+                  className="w-full mt-4 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                >
+                  📚 Solicitar Préstamo
+                </button>
+              )}
+
+              {!isAuthenticated && (
+                <p className="text-center text-gray-500 text-sm mt-4">
+                  Inicia sesión para solicitar préstamos
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente para la tarjeta de cada libro
+const BookCard = ({ book, onClick }: { book: Book; onClick: () => void }) => {
+  const isAvailable = book.availability?.isAvailable || false;
+  const availableCopies = book.availability?.availableCopies || 0;
+
+  return (
+    <div 
+      onClick={onClick}
+      className="bg-white rounded-lg shadow-md overflow-hidden transition-all transform hover:scale-105 hover:shadow-xl cursor-pointer"
+    >
+      <div className="relative">
+        <img
+          className="w-full h-48 object-cover"
+          src={book.coverImage || `https://placehold.co/400x600/10B981/FFFFFF?text=${encodeURIComponent(book.title.substring(0, 20))}`}
+          alt={book.title}
+        />
+        <div className="absolute top-2 right-2">
+          <span className={`px-3 py-1 text-xs rounded-full font-semibold ${
+            isAvailable ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          }`}>
+            {isAvailable ? `${availableCopies} disponibles` : 'No disponible'}
+          </span>
+        </div>
+      </div>
+      <div className="p-4">
+        <h3 className="text-lg font-bold text-gray-900 mb-2 truncate" title={book.title}>{book.title}</h3>
+        <p className="text-sm text-gray-600 mb-1 truncate" title={book.author}>✍️ {book.author}</p>
+        <p className="text-xs text-gray-500">📅 {book.publishedYear}</p>
+        <div className="mt-3 flex flex-wrap gap-1">
+          {(Array.isArray(book.genre) ? book.genre.slice(0, 2) : [book.genre]).map((g, idx) => (
+            <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+              {g}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente para tarjeta de préstamo activo
+const LoanCard = ({ loan, onRenew }: { loan: Loan; onRenew: (loanId: string) => void }) => {
+  const dueDate = new Date(loan.dueDate);
+  const now = new Date();
+  const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const isOverdue = daysUntilDue < 0;
+  const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
+
+  return (
+    <div className={`bg-white rounded-lg shadow-md p-4 border-l-4 ${
+      isOverdue ? 'border-red-500' : isDueSoon ? 'border-yellow-500' : 'border-green-500'
+    }`}>
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <h3 className="font-bold text-gray-900 text-lg">{loan.book.title}</h3>
+          <p className="text-sm text-gray-600 mt-1">Por {loan.book.author}</p>
+          <div className="mt-3 space-y-1">
+            <p className="text-xs text-gray-500">
+              📅 Préstamo: {new Date(loan.loanDate).toLocaleDateString('es-CO')}
+            </p>
+            <p className={`text-xs font-medium ${
+              isOverdue ? 'text-red-600' : isDueSoon ? 'text-yellow-600' : 'text-gray-600'
+            }`}>
+              📆 Vence: {dueDate.toLocaleDateString('es-CO')}
+              {isOverdue && ' (' + Math.abs(daysUntilDue) + ' días atrasado)'}
+              {isDueSoon && ' (' + daysUntilDue + ' días restantes)'}
+              {!isOverdue && !isDueSoon && ' (' + daysUntilDue + ' días restantes)'}
+            </p>
+            <p className="text-xs text-gray-500">📋 Copia #{loan.copyNumber}</p>
+          </div>
+        </div>
+        <div>
+          <button
+            onClick={() => onRenew(loan._id)}
+            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+            title="Renovar préstamo"
+          >
+            🔄 Renovar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente de la página principal
+const HomePage = () => {
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
+  const [user, setUser] = useState<User | null>(null);
+  const [person, setPerson] = useState<Person | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedGenre, setSelectedGenre] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadingLoans, setLoadingLoans] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'catalog' | 'loans'>('catalog');
+
+  // Verificar sesión al cargar
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    const savedPerson = localStorage.getItem('person');
+
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+        if (savedPerson) setPerson(JSON.parse(savedPerson));
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }, []);
+
+  // Cargar libros desde la API
+  useEffect(() => {
+    const loadBooks = async () => {
+      try {
+        setLoading(true);
+        
+        // Timeout de 8 segundos (suficiente para localhost)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 8000)
+        );
+        
+        const response = await Promise.race([
+          booksApi.getAll({ page: 1, limit: 100, isActive: true }),
+          timeoutPromise
+        ]);
+        
+        if (response && typeof response === 'object' && 'success' in response && response.success && response.data) {
+          setBooks(response.data);
+        } else {
+          throw new Error('Error al cargar libros');
+        }
+      } catch (err) {
+        console.error('Error loading books:', err);
+        setError('Usando datos de ejemplo (backend no disponible)');
+        
+        // Datos de ejemplo
+        setBooks([
+          {
+            _id: '1',
+            title: 'Don Quijote de la Mancha',
+            author: 'Miguel de Cervantes',
+            isbn: '9788420412146',
+            genre: ['Clásicos', 'Ficción'],
+            publishedYear: 1605,
+            description: 'La obra más destacada de la literatura española',
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            estadoLibro: 'Bueno' as const,
+            availability: {
+              totalCopies: 4,
+              availableCopies: 3,
+              borrowedCopies: 1,
+              isAvailable: true
+            }
+          },
+          {
+            _id: '2',
+            title: '1984',
+            author: 'George Orwell',
+            isbn: '9780451524935',
+            genre: ['Ficción', 'Distopía'],
+            publishedYear: 1949,
+            description: 'Una distopía sobre el totalitarismo',
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            estadoLibro: 'Bueno' as const,
+            availability: {
+              totalCopies: 3,
+              availableCopies: 2,
+              borrowedCopies: 1,
+              isAvailable: true
+            }
+          }
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBooks();
+  }, []);
+
+  // Cargar préstamos del usuario si está autenticado
+  useEffect(() => {
+    if (user && person) {
+      loadUserLoans();
+    }
+  }, [user, person]);
+
+  const loadUserLoans = async () => {
+    if (!person?.id) return;
+    
+    try {
+      setLoadingLoans(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/loans/user/${person.id}?status=prestado`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setLoans(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading loans:', error);
+    } finally {
+      setLoadingLoans(false);
+    }
+  };
+
+  const handleRequestLoan = async (bookId: string) => {
+    if (!user || !person) {
+      showWarning('Autenticación requerida', 'Debes iniciar sesión para solicitar un préstamo');
+      setShowLoginModal(true);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      console.log('🔵 Solicitando préstamo:', { bookId, userId: user.id });
+      
+      const response = await fetch('http://localhost:5000/api/loans', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bookId,
+          userId: user.id,  // Usar user.id, no person.id
+          loanType: 'normal'
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        showSuccess('Solicitud enviada', 'Tu solicitud de préstamo fue realizada y está en espera de aprobación.');
+        setShowBookModal(false);
+        // Actualizar solo préstamos del usuario; no tocar disponibilidad hasta aprobación
+        loadUserLoans();
+      } else {
+        showError('Error en préstamo', data.message || 'No se pudo procesar la solicitud');
+      }
+    } catch (error) {
+      console.error('Error requesting loan:', error);
+      showError('Error de conexión', 'No se pudo conectar con el servidor');
+    }
+  };
+
+  const handleRenewLoan = async (loanId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/loans/${loanId}/renew`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          additionalDays: 7,
+          reason: 'Renovación solicitada por el usuario'
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        showSuccess('Préstamo renovado', 'Se agregaron 7 días más al préstamo');
+        loadUserLoans();
+      } else {
+        showError('Error al renovar', data.message || 'No se pudo renovar el préstamo');
+      }
+    } catch (error) {
+      console.error('Error renewing loan:', error);
+      showError('Error de conexión', 'No se pudo conectar con el servidor');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('person');
+    setUser(null);
+    setPerson(null);
+    setLoans([]);
+    setActiveTab('catalog');
+  };
+
+  // Obtener géneros únicos de los libros
+  const allGenres = books.flatMap(book => Array.isArray(book.genre) ? book.genre : [book.genre]);
+  const genres = ['Todos', ...new Set(allGenres)];
+
+  // Filtrar libros según búsqueda y género
+  const filteredBooks = books.filter(book => {
+    const matchesSearch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          book.author.toLowerCase().includes(searchTerm.toLowerCase());
+    const bookGenres = Array.isArray(book.genre) ? book.genre : [book.genre];
+    const matchesGenre = selectedGenre === 'Todos' || selectedGenre === '' || bookGenres.includes(selectedGenre);
+    return matchesSearch && matchesGenre;
+  });
+
+  if (loading) {
+    return (
+      <div className="bg-gradient-to-br from-green-50 to-blue-50 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mx-auto mb-4"></div>
+          <p className="text-xl text-gray-700">Cargando catálogo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-8">
+        {/* Tabs para usuario autenticado */}
+        {user && (
+          <div className="flex gap-4 mb-6">
+            <button
+              onClick={() => setActiveTab('catalog')}
+              className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors ${
+                activeTab === 'catalog'
+                  ? 'bg-green-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              📚 Catálogo de Libros
+            </button>
+            <button
+              onClick={() => setActiveTab('loans')}
+              className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors ${
+                activeTab === 'loans'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              📖 Mis Préstamos ({loans.length})
+            </button>
+          </div>
+        )}
+
+        {/* Tab de Catálogo */}
+        {activeTab === 'catalog' && (
+          <>
+            <h2 className="text-4xl font-extrabold text-green-700 mb-6 text-center">
+              Catálogo de Libros
+            </h2>
+
+            {/* Estadísticas rápidas */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-white p-6 rounded-lg shadow-md text-center">
+                <h3 className="text-3xl font-bold text-green-700">{books.length}</h3>
+                <p className="text-gray-600 mt-2">Libros en catálogo</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow-md text-center">
+                <h3 className="text-3xl font-bold text-blue-700">
+                  {books.filter(book => book.availability?.isAvailable).length}
+                </h3>
+                <p className="text-gray-600 mt-2">Disponibles</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow-md text-center">
+                <h3 className="text-3xl font-bold text-purple-700">{genres.length - 1}</h3>
+                <p className="text-gray-600 mt-2">Géneros diferentes</p>
+              </div>
+            </div>
+
+            {/* Barra de Búsqueda y Filtros */}
+            <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <input
+                  type="text"
+                  className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="🔍 Buscar por título o autor..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <select
+                  className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={selectedGenre}
+                  onChange={(e) => setSelectedGenre(e.target.value)}
+                >
+                  {genres.map(genre => (
+                    <option key={genre} value={genre}>{genre}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-4 text-sm text-gray-600">
+                Mostrando {filteredBooks.length} de {books.length} libros
+                {searchTerm && ` para "${searchTerm}"`}
+                {selectedGenre && selectedGenre !== 'Todos' && ` en "${selectedGenre}"`}
+              </div>
+            </div>
+
+            {/* Grilla de Libros */}
+            {error ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
+                <p className="text-red-600 text-lg">{error}</p>
+              </div>
+            ) : filteredBooks.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {filteredBooks.map((book) => (
+                  <BookCard 
+                    key={book._id} 
+                    book={book}
+                    onClick={() => {
+                      setSelectedBook(book);
+                      setShowBookModal(true);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-md p-12 text-center">
+                <div className="text-6xl mb-4">📚</div>
+                <p className="text-xl text-gray-600 mb-2">No se encontraron libros</p>
+                <p className="text-gray-500">Intenta cambiar los filtros o el término de búsqueda</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Tab de Préstamos */}
+        {activeTab === 'loans' && user && (
+          <>
+            <h2 className="text-4xl font-extrabold text-blue-700 mb-6 text-center">
+              Mis Préstamos Activos
+            </h2>
+
+            {loadingLoans ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Cargando préstamos...</p>
+              </div>
+            ) : loans.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {loans.map((loan) => (
+                  <LoanCard key={loan._id} loan={loan} onRenew={handleRenewLoan} />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-md p-12 text-center">
+                <div className="text-6xl mb-4">📖</div>
+                <p className="text-xl text-gray-600 mb-2">No tienes préstamos activos</p>
+                <p className="text-gray-500">Explora el catálogo y solicita libros</p>
+                <button
+                  onClick={() => setActiveTab('catalog')}
+                  className="mt-6 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Ver Catálogo
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Footer */}
+        <footer className="mt-16 py-8 border-t border-gray-200">
+          <div className="text-center text-gray-600">
+            <p className="text-lg font-semibold mb-2">Sistema de Biblioteca MERN</p>
+            <p>Explora nuestro catálogo completo de libros disponibles</p>
+            {!user && (
+              <p className="text-sm mt-2">
+                Para solicitar préstamos, por favor inicia sesión
+              </p>
+            )}
+          </div>
+        </footer>
+      </div>
+
+      {/* Modal de Login */}
+      <LoginModal 
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLoginSuccess={(userData) => {
+          setUser(userData.user);
+          setPerson(userData.person);
+          setShowLoginModal(false);
+          if (userData.user.role === 'user') {
+            // Usuario tipo "user" permanece en HomePage
+            loadUserLoans();
+          }
+        }}
+      />
+
+      {/* Modal de detalles de libro */}
+      <BookDetailModal
+        book={selectedBook}
+        isOpen={showBookModal}
+        onClose={() => setShowBookModal(false)}
+        isAuthenticated={!!user}
+        onRequestLoan={handleRequestLoan}
+      />
+    </div>
+  );
+};
+
+export default HomePage;

@@ -1,0 +1,111 @@
+# Test del nuevo sistema de autenticación y personas
+
+## 1. Test de la API base
+GET http://localhost:5000/
+
+## 2. Test de health check
+GET http://localhost:5000/api/health
+
+## 3. Crear un superadmin (solo funciona si no existe)
+POST http://localhost:5000/api/auth/create-superadmin
+Content-Type: application/json
+
+{
+    "email": "admin@biblioteca.com",
+    "password": "admin123",
+    "personData": {
+        "doc": "123456789",
+        "tipoDoc": "CC",
+        "apellido1": "Administrador",
+        "apellido2": "Sistema",
+        "nombre1": "Super",
+        "nombre2": "Admin",
+        "genero": "M",
+        "tipoPersona": "Colaborador"
+    }
+}
+
+## 4. Login como superadmin
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@biblioteca.com",
+    "password": "admin123"
+}
+
+## 5. Crear una persona nueva (requiere token de admin)
+POST http://localhost:5000/api/persons
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "doc": "987654321",
+    "tipoDoc": "CC",
+    "apellido1": "Pérez",
+    "apellido2": "García",
+    "nombre1": "Juan",
+    "nombre2": "Carlos",
+    "genero": "M",
+    "tipoPersona": "Estudiante",
+    "grado": "11",
+    "grupo": "A",
+    "fechaNacimiento": "2005-01-15"
+}
+
+## 6. Buscar personas (requiere token)
+GET http://localhost:5000/api/persons/search?query=Juan
+Authorization: Bearer YOUR_TOKEN_HERE
+
+## 7. Ver estadísticas de personas (requiere token admin)
+GET http://localhost:5000/api/persons/stats
+Authorization: Bearer YOUR_TOKEN_HERE
+
+## 8. Crear cuenta para un estudiante por lotes (requiere token admin)
+POST http://localhost:5000/api/auth/create-users-by-grade
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "grado": "11",
+    "grupo": "A"
+}
+
+## 9. Marcar entrada a biblioteca (requiere token)
+POST http://localhost:5000/api/attendance/checkin
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "personId": "PERSON_ID_HERE",
+    "tipoVisita": "Consulta",
+    "observaciones": "Consulta de libros de matemáticas"
+}
+
+## 10. Ver entradas activas
+GET http://localhost:5000/api/attendance/active
+Authorization: Bearer YOUR_TOKEN_HERE
+
+## 11. Crear reserva de espacio (requiere token)
+POST http://localhost:5000/api/spaces/reserve
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "espacioNombre": "Sala de Estudio 1",
+    "fechaInicio": "2024-12-20T14:00:00.000Z",
+    "fechaFin": "2024-12-20T16:00:00.000Z",
+    "proposito": "Estudio grupal de matemáticas",
+    "numeroPersonas": 4,
+    "observaciones": "Necesitamos acceso a computadores"
+}
+
+## 12. Ver mis reservas
+GET http://localhost:5000/api/spaces/my-reservations
+Authorization: Bearer YOUR_TOKEN_HERE
+
+## NOTAS:
+## - Reemplaza YOUR_TOKEN_HERE con el token JWT obtenido del login
+## - Reemplaza PERSON_ID_HERE con un ID real de persona
+## - Las fechas deben ser futuras para las reservas
+## - Este archivo puede usarse con REST Client de VS Code

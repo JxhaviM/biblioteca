@@ -1,0 +1,3 @@
+doc,tipoDoc,apellido1,apellido2,nombre1,nombre2,genero,fechaNacimiento,direccion,celular,email,grado,grupo
+12345,CC,Ruiz,,Juan,,Masculino,2005-01-01,Av Siempreviva,3001112222,juan@example.com,10,A
+67890,CC,Perez,,Ana,,Femenino,2006-05-05,Cl 5,3003334444,ana@example.com,9,B

@@ -1,0 +1,951 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import type { User, Person } from '../api/auth';
+import type { UserUpdateData } from '../types';
+import EditUserModal from '../components/EditUserModal';
+import CreateUserModal from '../components/CreateUserModal';
+import UserPermissionsModal from '../components/UserPermissionsModal';
+import ViewUserModal from '../components/ViewUserModal';
+import Avatar from '../components/Avatar';
+import { getUsers, updateUser } from '../api/users';
+import { authAPI } from '../api/auth';
+import { API_BASE_URL } from '../config/api';
+import CreateUsersByGradeDashboardModal from '../components/CreateUsersByGradeDashboardModal';
+
+// Estilos CSS para la tabla
+const tableStyles = `
+  <style>
+    .sticky-header-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .sticky-header-table tbody tr:hover {
+      background-color: #f9fafb;
+    }
+    .max-h-[70vh] {
+      max-height: 70vh;
+    }
+    .overflow-x-auto {
+      overflow-x: auto;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+      max-width: 200px;
+    }
+    .action-buttons button {
+      flex-shrink: 0;
+    }
+  </style>
+`;
+
+interface UserManagementProps {
+  currentUserRole: 'superadmin' | 'admin' | 'user';
+}
+
+interface UserWithDetails extends User {
+  _id: string;
+  lastLogin?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  person?: Person;
+  tipoPersona?: string;
+  grupo?: string;
+}
+
+const UserManagementPage: React.FC<UserManagementProps> = ({ currentUserRole }) => {
+
+  const [users, setUsers] = useState<UserWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // Estados para edición
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserWithDetails | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+
+  // Estado para el modal de ver detalles
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewUser, setViewUser] = useState<UserWithDetails | null>(null);
+  const [viewPerson, setViewPerson] = useState<Person | null>(null);
+
+  // Estado para creación por grado (solo SuperAdmin)
+  const [showCreateByGradeModal, setShowCreateByGradeModal] = useState(false);
+  
+  // Estado para el modal de creación de usuario
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+
+  // Estado para el modal de permisos
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<UserWithDetails | null>(null);
+
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
+
+  // Obtener el ID del usuario actual
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setCurrentUserId(user.id);
+    }
+  }, []);
+
+  const canCreateUsers = currentUserRole === 'superadmin' || currentUserRole === 'admin';
+  const canEditUsers = currentUserRole === 'superadmin' || currentUserRole === 'admin';
+
+  // Memoizar los roles manejables para evitar re-renderizado infinito
+  const manageableRoles = useMemo(() => {
+    switch (currentUserRole) {
+      case 'superadmin':
+        return ['user', 'admin', 'superadmin'];
+      case 'admin':
+        return ['user'];
+      default:
+        return [];
+    }
+  }, [currentUserRole]);
+
+  // Cargar usuarios
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No hay token de autenticación');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error al cargar usuarios: ${response.status}`);
+      }
+
+      const apiResponse = await response.json();
+      
+      // Verificar que la respuesta sea exitosa y tenga datos
+      if (!apiResponse.success || !Array.isArray(apiResponse.data)) {
+        throw new Error('Respuesta de API inválida');
+      }
+      
+      // Filtrar usuarios según el rol del usuario actual
+      const filteredUsers = apiResponse.data.filter((user: UserWithDetails) => 
+        manageableRoles.includes(user.role)
+      );
+
+      // Debug: Ver estructura de datos
+      console.log('🔍 [UserManagement] Usuarios recibidos:', filteredUsers.length);
+      console.log('🔍 [UserManagement] Primer usuario:', filteredUsers[0]);
+      if (filteredUsers[0]?.person) {
+        console.log('🔍 [UserManagement] Person data:', filteredUsers[0].person);
+        console.log('🔍 [UserManagement] Person.nombre1:', filteredUsers[0].person.nombre1);
+        console.log('🔍 [UserManagement] Person.apellido1:', filteredUsers[0].person.apellido1);
+        console.log('🔍 [UserManagement] Person.doc:', filteredUsers[0].person.doc);
+        console.log('🔍 [UserManagement] Person.grupo:', filteredUsers[0].person.grupo);
+        console.log('🔍 [UserManagement] Person.tipoPersona:', filteredUsers[0].person.tipoPersona);
+        console.log('🔍 [UserManagement] Todas las keys de person:', Object.keys(filteredUsers[0].person));
+      } else {
+        console.log('❌ [UserManagement] Person es NULL o undefined');
+      }
+
+      setUsers(filteredUsers);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setLoading(false);
+    }
+  }, [manageableRoles]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // Función para abrir el modal de edición
+  const handleEditUser = async (user: UserWithDetails) => {
+    try {
+      const userId = getUserId(user);
+      
+      // Si el usuario ya tiene datos de persona, usar esos
+      if (user.person) {
+        setSelectedUser(user);
+        setSelectedPerson(user.person);
+        setShowEditModal(true);
+        return;
+      }
+      
+      // Si no tiene datos de persona, cargarlos desde la API
+      const response = await getUsers();
+      if (response.success && response.data) {
+        const userWithPerson = response.data.find(u => {
+          const foundUserId = u._id;
+          return foundUserId === userId;
+        });
+        
+        if (userWithPerson && userWithPerson.person) {
+          // Adaptar el objeto persona para que tenga el campo id requerido por el tipo Person
+          const personaApi = userWithPerson.person;
+          const personaTyped: Person = { ...personaApi, id: (personaApi as any)._id || '' } as unknown as Person;
+          const updatedUser: UserWithDetails = {
+            ...user,
+            person: personaTyped
+          };
+          setSelectedUser(updatedUser);
+          setSelectedPerson(personaTyped);
+          setShowEditModal(true);
+        } else {
+          alert('No se pudieron cargar los datos de la persona');
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar datos del usuario:', error);
+      alert('Error al cargar los datos del usuario');
+    }
+  };
+
+  // Función para ver detalles del usuario
+  const handleViewUser = async (user: UserWithDetails) => {
+    try {
+      const userId = getUserId(user);
+      
+      // Si el usuario ya tiene datos de persona, usar esos
+      if (user.person) {
+        setViewUser(user);
+        setViewPerson(user.person);
+        setShowViewModal(true);
+        return;
+      }
+      
+      // Si no tiene datos de persona, cargarlos desde la API
+      const response = await getUsers();
+      if (response.success && response.data) {
+        const userWithPerson = response.data.find(u => {
+          const foundUserId = u._id;
+          return foundUserId === userId;
+        });
+        
+        if (userWithPerson && userWithPerson.person) {
+          // Adaptar el objeto persona para que tenga el campo id requerido por el tipo Person
+          const personaApi = userWithPerson.person;
+          const personaTyped: Person = { ...personaApi, id: (personaApi as any)._id || '' } as unknown as Person;
+          const updatedUser: UserWithDetails = {
+            ...user,
+            person: personaTyped
+          };
+          setViewUser(updatedUser);
+          setViewPerson(personaTyped);
+          setShowViewModal(true);
+        } else {
+          alert('No se pudieron cargar los datos de la persona');
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar datos del usuario:', error);
+      alert('Error al cargar los datos del usuario');
+    }
+  };
+
+  // Función para guardar cambios del usuario
+  const handleSaveUser = async (updates: UserUpdateData) => {
+    if (!selectedUser) return;
+    
+    try {
+      const userId = getUserId(selectedUser);
+      const response = await updateUser(userId, updates);
+      
+      if (response.success) {
+        // Actualizar la lista de usuarios
+        await fetchUsers();
+        alert('Usuario actualizado exitosamente');
+      }
+    } catch (error) {
+      console.error('Error al actualizar usuario:', error);
+      throw error; // Re-lanzar para que el modal pueda manejarlo
+    }
+  };
+
+  // Función para gestionar imagen de perfil
+  const handleProfileImage = (user: UserWithDetails) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    input.onchange = async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      try {
+        const formData = new FormData();
+        formData.append('profileImage', file);
+        
+        const token = localStorage.getItem('token');
+        const userId = getUserId(user);
+        
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/profile-image`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('Imagen de perfil actualizada exitosamente');
+          await fetchUsers(); // Recargar para mostrar la nueva imagen
+        } else {
+          alert(data.message || 'Error al actualizar la imagen');
+        }
+      } catch (error) {
+        console.error('Error al actualizar imagen:', error);
+        alert('Error al actualizar la imagen de perfil');
+      }
+    };
+    
+    input.click();
+  };
+
+  // Función para cerrar el modal de edición
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setSelectedUser(null);
+    setSelectedPerson(null);
+  };
+
+  // Función para obtener el ID real del usuario (puede ser _id o id)
+  const getUserId = (user: UserWithDetails & { _id?: string }) => {
+    return user.id || user._id || '';
+  };
+
+  // Función para verificar si un usuario es el usuario actual
+  const isCurrentUser = (userId: string) => {
+    const isMatch = currentUserId && currentUserId === userId;
+    return isMatch;
+  };
+
+  // Función para determinar si se pueden mostrar las acciones para un usuario
+  const canPerformActionsOnUser = (user: UserWithDetails & { _id?: string }) => {
+    const userId = getUserId(user);
+    // No se puede modificar a uno mismo
+    if (isCurrentUser(userId)) {
+      return false;
+    }
+    
+    // Superadmin puede modificar a todos excepto a sí mismo
+    if (currentUserRole === 'superadmin') {
+      return true;
+    }
+    
+    // Admin solo puede modificar usuarios regulares, no otros admins o superadmins
+    if (currentUserRole === 'admin') {
+      return user.role === 'user';
+    }
+    
+    return false;
+  };
+
+  // Función para manejar permisos de usuario
+  const handlePermissions = (user: UserWithDetails) => {
+    setSelectedUserForPermissions(user);
+    setShowPermissionsModal(true);
+  };
+
+  const handleUpdatePermissions = async (userId: string, permissions: { canChangeBookImages?: boolean }) => {
+    try {
+      await authAPI.updateUserPermissions(userId, permissions);
+      
+      // Actualizar el usuario en la lista local
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          (user.id || user._id) === userId 
+            ? { ...user, specialPermissions: permissions }
+            : user
+        )
+      );
+      
+      // Si el usuario actual está siendo modificado, forzar recarga de datos
+      const currentUserId = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).id : null;
+      if (userId === currentUserId) {
+        console.log('🔄 Usuario actual modificado, forzando recarga de datos...');
+        // Opción 1: Recargar datos del usuario desde el backend
+        // Opción 2: Forzar logout y login nuevamente
+        alert('⚠️ Tus permisos han sido actualizados. Por favor cierra sesión y vuelve a iniciar sesión para que los cambios tengan efecto.');
+      } else {
+        alert('Permisos actualizados exitosamente');
+      }
+    } catch (error) {
+      console.error('Error updating permissions:', error);
+      throw error;
+    }
+  };
+
+  const handleClosePermissionsModal = () => {
+    setShowPermissionsModal(false);
+    setSelectedUserForPermissions(null);
+  };
+
+  // Filtrar usuarios según la búsqueda y filtros
+  const filteredUsers = users.filter(user => {
+    const userId = getUserId(user);
+    const personName = user.person ? 
+      `${user.person.nombre1 || ''} ${user.person.apellido1 || ''}`.trim() : '';
+    const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         personName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  // Calcular paginación
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+  // Reset a página 1 cuando cambie el filtro o búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter]);
+
+  // Función para cambiar el estado de un usuario
+  const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      const token = localStorage.getItem('token');
+      let response;
+
+      if (currentStatus) {
+        // Si está activo y lo queremos desactivar, usar soft delete
+        if (!confirm('¿Estás seguro de que quieres desactivar este usuario? El usuario será marcado como inactivo pero se preservará su historial.')) {
+          return;
+        }
+        
+        response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      } else {
+        // Si está inactivo y lo queremos activar, usar restore
+        response = await fetch(`${API_BASE_URL}/users/${userId}/restore`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error('Error al cambiar estado del usuario');
+      }
+
+      // Actualizar la lista local
+      setUsers(prev => prev.map(user => 
+        getUserId(user) === userId ? { ...user, isActive: !currentStatus } : user
+      ));
+      
+      alert(currentStatus ? 'Usuario desactivado exitosamente' : 'Usuario activado exitosamente');
+    } catch (err) {
+      console.error('Error toggling user status:', err);
+      alert('Error al cambiar el estado del usuario');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando usuarios...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchUsers}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div dangerouslySetInnerHTML={{ __html: tableStyles }} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Gestión de Usuarios
+              </h1>
+              <p className="text-gray-600 mt-2">
+                {currentUserRole === 'superadmin' 
+                  ? 'Administra todos los usuarios del sistema'
+                  : 'Administra usuarios con rol de usuario'
+                }
+              </p>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowCreateUserModal(true)}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+              >
+                Crear Usuario
+              </button>
+              {(currentUserRole === 'superadmin' || currentUserRole === 'admin') && (
+                <button
+                  onClick={() => setShowCreateByGradeModal(true)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                >
+                  Crear Usuarios por Grado
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <span className="text-2xl">👥</span>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Usuarios</p>
+                  <p className="text-2xl font-bold text-gray-900">{filteredUsers.length}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <span className="text-2xl">✅</span>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Activos</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {filteredUsers.filter(u => u.isActive).length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <span className="text-2xl">❌</span>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Inactivos</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {filteredUsers.filter(u => !u.isActive).length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {currentUserRole === 'superadmin' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <span className="text-2xl">🔑</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Admins</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {filteredUsers.filter(u => u.role === 'admin' || u.role === 'superadmin').length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Search */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Buscar Usuario
+              </label>
+              <input
+                type="text"
+                placeholder="Buscar por nombre, usuario o documento..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Role Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Filtrar por Rol
+              </label>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">Todos los roles</option>
+                {manageableRoles.map((role: string) => (
+                  <option key={role} value={role}>
+                    {role === 'superadmin' ? 'Super Administrador' : 
+                     role === 'admin' ? 'Administrador' : 'Usuario'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Results count */}
+            <div className="flex items-end">
+              <div className="text-sm text-gray-600">
+                Mostrando {filteredUsers.length} de {users.length} usuarios
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Users Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto max-h-[70vh]">
+            <table className="min-w-full divide-y divide-gray-200 sticky-header-table">
+              <thead className="bg-gray-50 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Usuario
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Grupo
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Tipo
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Rol
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Estado
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Último Login
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Creado
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedUsers.map((user, index) => {
+                  const userId = getUserId(user);
+                  return (
+                  <tr key={`user-${userId}-${index}`} className="hover:bg-gray-50">
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <Avatar 
+                          user={user}
+                          size="md"
+                          className="flex-shrink-0"
+                        />
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                            {user.person ? 
+                              `${user.person.nombre1 || ''} ${user.person.apellido1 || ''}`.trim() || user.username :
+                              user.username
+                            }
+                            {isCurrentUser(userId) && (
+                              <span key={`current-user-badge-${userId}-${index}`} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                Este eres tú
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {user.person?.doc || userId}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">
+                        {user.person?.grupo || '-'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                        {user.person?.tipoPersona || user.tipoPersona || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        user.role === 'superadmin' ? 'bg-red-100 text-red-800' :
+                        user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {user.role === 'superadmin' && '🔑 '}
+                        {user.role === 'admin' && '👨‍💼 '}
+                        {user.role === 'user' && '👤 '}
+                        {user.role === 'superadmin' ? 'Super Admin' : 
+                         user.role === 'admin' ? 'Admin' : 'Usuario'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {user.isActive ? '✅ Activo' : '❌ Inactivo'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                      {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('es-ES') : 'Nunca'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            onClick={() => handleViewUser(user)}
+                            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                            title="Ver detalles completos"
+                          >
+                            👁️ Ver
+                          </button>
+                          
+                          {/* Toggle Status */}
+                          <button
+                            key={`toggle-btn-${userId}-${index}`}
+                            onClick={() => toggleUserStatus(userId, user.isActive)}
+                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium transition-colors ${
+                              user.isActive 
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                : 'bg-green-100 text-green-700 hover:bg-green-200'
+                            }`}
+                            title={user.isActive ? 'Desactivar usuario' : 'Activar usuario'}
+                          >
+                            {user.isActive ? '🔒' : '🔓'}
+                          </button>
+
+                          {/* Edit */}
+                          {canEditUsers && (
+                            <button
+                              key={`edit-btn-${userId}-${index}`}
+                              onClick={() => handleEditUser(user)}
+                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                              title="Editar usuario"
+                            >
+                              ✏️
+                            </button>
+                          )}
+
+                          {/* Permissions */}
+                          {(currentUserRole === 'admin' || currentUserRole === 'superadmin') && user.role === 'user' && (
+                            <button
+                              key={`perm-btn-${userId}-${index}`}
+                              onClick={() => handlePermissions(user)}
+                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                              title="Gestionar permisos especiales"
+                            >
+                              🔐
+                            </button>
+                          )}
+
+                          {/* Profile Image */}
+                          {canEditUsers && (
+                            <button
+                              key={`image-btn-${userId}-${index}`}
+                              onClick={() => handleProfileImage(user)}
+                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                              title="Gestionar imagen de perfil"
+                            >
+                              📷
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">
+                          🔒 Sin permisos para modificar
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {filteredUsers.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-gray-400 text-6xl mb-4">👥</div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No se encontraron usuarios
+                </h3>
+                <p className="text-gray-500">
+                  {searchTerm || roleFilter !== 'all' 
+                    ? 'Intenta ajustar tus filtros de búsqueda'
+                    : 'No hay usuarios registrados en el sistema'
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Paginación */}
+          {filteredUsers.length > 0 && totalPages > 1 && (
+            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Siguiente
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Mostrando{' '}
+                    <span className="font-medium">{startIndex + 1}</span>
+                    {' '}a{' '}
+                    <span className="font-medium">{Math.min(endIndex, filteredUsers.length)}</span>
+                    {' '}de{' '}
+                    <span className="font-medium">{filteredUsers.length}</span>
+                    {' '}usuarios
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Anterior</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    
+                    {/* Números de página */}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
+                      // Mostrar solo algunas páginas alrededor de la actual
+                      if (
+                        pageNum === 1 ||
+                        pageNum === totalPages ||
+                        (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
+                      ) {
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                              currentPage === pageNum
+                                ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                                : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      } else if (
+                        pageNum === currentPage - 3 ||
+                        pageNum === currentPage + 3
+                      ) {
+                        return <span key={pageNum} className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>;
+                      }
+                      return null;
+                    })}
+                    
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Siguiente</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <EditUserModal
+          isOpen={showEditModal}
+          onClose={handleCloseEditModal}
+          user={selectedUser}
+          person={selectedPerson}
+          onSave={handleSaveUser}
+          currentUserRole={currentUserRole}
+          currentUserId={currentUserId || ''}
+        />
+        
+        <CreateUsersByGradeDashboardModal
+          isOpen={showCreateByGradeModal}
+          onClose={() => setShowCreateByGradeModal(false)}
+          currentUserRole={currentUserRole as 'superadmin' | 'admin'}
+        />
+        
+        <CreateUserModal
+          isOpen={showCreateUserModal}
+          onClose={() => setShowCreateUserModal(false)}
+          onSuccess={(message) => {
+            fetchUsers();
+            alert(message);
+          }}
+          currentUserRole={currentUserRole as 'superadmin' | 'admin'}
+          isMasterSuperAdmin={currentUserRole === 'superadmin'}
+        />
+
+        <UserPermissionsModal
+          isOpen={showPermissionsModal}
+          onClose={handleClosePermissionsModal}
+          user={selectedUserForPermissions}
+          onUpdate={handleUpdatePermissions}
+        />
+      </div>
+    </>
+  );
+};
+
+export default UserManagementPage;

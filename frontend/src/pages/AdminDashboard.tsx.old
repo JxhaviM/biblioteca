@@ -1,0 +1,183 @@
+import { useState, useEffect } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { dashboardApi, type DashboardStats } from '../api';
+import CreateLoanModal from '../components/CreateLoanModal';
+import type { User, Person } from '../api/auth';
+
+interface AdminDashboardProps {
+  user?: User | null;
+  person?: Person | null;
+  setUser: Dispatch<SetStateAction<User | null>>;
+  setPerson: Dispatch<SetStateAction<Person | null>>;
+}
+
+// Componente para las tarjetas de estadísticas
+const StatCard = ({ title, value, icon, gradient, trend }: {
+  title: string;
+  value: number | string;
+  icon: string;
+  gradient: string;
+  trend?: { value: number; isPositive: boolean };
+}) => (
+  <div className="relative overflow-hidden bg-white rounded-2xl shadow-xl border border-gray-100 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
+    <div className={`absolute inset-0 ${gradient} opacity-5`}></div>
+    <div className="relative p-8">
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</p>
+          <p className="text-4xl font-black text-gray-900">{value}</p>
+          {trend && (
+            <div className={`flex items-center space-x-1 text-sm font-medium ${
+              trend.isPositive ? 'text-emerald-600' : 'text-red-500'
+            }`}>
+              <span>{trend.isPositive ? '↗' : '↘'}</span>
+              <span>{Math.abs(trend.value)}%</span>
+            </div>
+          )}
+        </div>
+        <div className={`p-4 rounded-xl ${gradient} bg-opacity-10`}>
+          <span className="text-3xl">{icon}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// Componente principal del Dashboard
+const AdminDashboard = ({ user, person, setUser, setPerson }: AdminDashboardProps) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  
+  // Función para navegar a la gestión de libros
+  const handleManageBooks = () => {
+    navigate('/admin/libros');
+  };
+  
+  // Función para navegar a la gestión de usuarios
+  const handleManageUsers = () => {
+    navigate('/admin/usuarios');
+  };
+  
+  // Función para navegar a la gestión de personas
+  const handleManagePersons = () => {
+    navigate('/admin/personas');
+  };
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        const response = await dashboardApi.getStats();
+        setStats(response.data);
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Error al cargar los datos del dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-red-600">{error}</div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="bg-white/80 backdrop-blur-lg border border-gray-200/50 rounded-2xl p-8 mb-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Panel de Administración</h1>
+                  <p className="text-gray-600">Bienvenido al sistema de gestión de la biblioteca</p>
+                </div>
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 rounded-2xl">
+                  <span className="text-3xl">📊</span>
+                </div>
+              </div>
+
+              {/* Sección de estadísticas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <StatCard
+                  title="Libros"
+                  value={stats?.totalBooks || 0}
+                  icon="📚"
+                  gradient="bg-blue-500"
+                />
+                <StatCard
+                  title="Préstamos Activos"
+                  value={stats?.activeLoans || 0}
+                  icon="📖"
+                  gradient="bg-green-500"
+                />
+                <StatCard
+                  title="Usuarios"
+                  value={stats?.totalUsers || 0}
+                  icon="👥"
+                  gradient="bg-purple-500"
+                />
+                <StatCard
+                  title="Devoluciones Hoy"
+                  value={stats?.returnsToday || 0}
+                  icon="✅"
+                  gradient="bg-orange-500"
+                />
+              </div>
+
+              {/* Sección de acciones rápidas */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <button
+                  onClick={handleManageBooks}
+                  className="p-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
+                  <div className="text-4xl mb-3">📚</div>
+                  <h3 className="text-xl font-bold mb-2">Gestionar Libros</h3>
+                  <p className="text-blue-100">Administra el catálogo de libros</p>
+                </button>
+
+                <button
+                  onClick={handleManageUsers}
+                  className="p-6 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
+                  <div className="text-4xl mb-3">👥</div>
+                  <h3 className="text-xl font-bold mb-2">Gestionar Usuarios</h3>
+                  <p className="text-green-100">Administra cuentas de usuario</p>
+                </button>
+
+                <button
+                  onClick={handleManagePersons}
+                  className="p-6 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl hover:from-purple-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
+                  <div className="text-4xl mb-3">👤</div>
+                  <h3 className="text-xl font-bold mb-2">Gestionar Personas</h3>
+                  <p className="text-purple-100">Administra registro de personas</p>
+                </button>
+              </div>
+            </div>
+          </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;
