@@ -192,10 +192,10 @@ VITE_API_BASE_URL=https://nombre-del-backend.onrender.com/api
 
 ## 7. Guía de Despliegue en Entorno Local
 
-### 7.1 Clonado del Repositorio (si aplica)
+### 7.1 Clonado del Repositorio 
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone <https://github.com/JxhaviM/biblioteca>
 cd biblioteca
 ```
 
